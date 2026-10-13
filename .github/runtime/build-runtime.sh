@@ -100,6 +100,10 @@ for package, record in manifest["dependencySources"].items():
         r"(?m)^\s*GIT_TAG[^\n]*\n", "", text
     )
     assert replaced <= 1, package
+    # A fixed commit must not retain branch reset rules from the upstream recipe.
+    for key in ("GIT_REMOTE_NAME", "GIT_RESET"):
+        text, removed = re.subn(rf"(?m)^\s*{key}[^\n]*\n", "", text)
+        assert removed <= 1, (package, key)
     text, inserted = re.subn(
         r"(?m)^(\s*GIT_REPOSITORY[^\n]*\n)",
         lambda match: match.group(1) + f"    GIT_TAG {record['revision']}\n",
@@ -116,6 +120,17 @@ for package, record in manifest["dependencySources"].items():
         text = text.replace("--depth=1 ", "")
     recipe.write_text(text, newline="\n")
 PY
+python3 - "$manifest" > "$work_root/SOURCE-DOWNLOAD-TARGETS.txt" <<'PY'
+import json
+import re
+import sys
+manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+packages = set(manifest["dependencySources"]) | {"windows-rs", "ffmpeg", "nvcodec-headers"}
+assert all(re.fullmatch(r"[a-z0-9-]+", package) for package in packages)
+for package in sorted(packages):
+    print(f"{package}-download")
+PY
+mapfile -t source_download_targets < "$work_root/SOURCE-DOWNLOAD-TARGETS.txt"
 commands_file="$work_root/BUILD-COMMANDS.txt"
 cat > "$commands_file" <<EOF
 Build scripts: $(read_value buildScripts.repository)
@@ -134,7 +149,7 @@ cmake -DTARGET_ARCH=x86_64-w64-mingw32 -DCOMPILER_TOOLCHAIN=gcc \\
   -DSINGLE_SOURCE_LOCATION=<work>/src_packages -DRUSTUP_LOCATION=<work>/rustup \\
   -DENABLE_CCACHE=OFF -G Ninja -B <work>/build_x86_64 -S <work>/mpv-winbuild-cmake
 ninja -C <work>/build_x86_64 download
-ninja -C <work>/build_x86_64 windows-rs-download cppwinrt-download mingw-w64-download
+ninja -C <work>/build_x86_64 ${source_download_targets[*]}
 ninja -C <work>/build_x86_64 gcc
 ninja -C <work>/build_x86_64 ffmpeg
 
@@ -146,7 +161,7 @@ cmake -DTARGET_ARCH=x86_64-w64-mingw32 -DCOMPILER_TOOLCHAIN=gcc \
     -DENABLE_CCACHE=OFF -G Ninja -B "$build_root" -S "$build_script_root"
 [[ $(git -C "$build_root/cmake/Modules/cmake-source" rev-parse FETCH_HEAD) == a9b14138fe83e134bc3da139857b5616695bab54 ]]
 ninja -C "$build_root" download
-ninja -C "$build_root" windows-rs-download cppwinrt-download mingw-w64-download
+ninja -C "$build_root" "${source_download_targets[@]}"
 [[ $(git -C "$source_root/windows-rs" rev-parse HEAD) == 845e42a4328ec5b54b97f965798589d997cad177 ]]
 printf '%s  %s\n' 9DDFC6F5E5C3D29522F35E1CAC566617E9D28CCBC6CCB072C79FA9949CDBE336 \
     "$source_root/windows-rs/crates/libs/default/Windows.winmd" | sha256sum --check

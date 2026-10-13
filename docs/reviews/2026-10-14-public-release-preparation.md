@@ -66,6 +66,11 @@ The build compares compiled source trees with the original inventory after patch
 Filtered clones of four network libraries no longer use a depth limit, which permits their specified older revisions.
 Fontconfig's official mirror had the same upstream commit and source tree when the GitLab server failed.
 
+The next [runtime run](https://github.com/MadMatt341/Stitch/actions/runs/38481085139) stopped at the source check because the upstream download group excluded libsixel.
+The workflow now downloads all specified Git targets before the revision checks.
+It also removes branch reset rules from fixed-commit recipes to retain the selected sources through cleanup.
+The application source check passed for `b511308b6ed10cd0eed4dc149020dac1e18d4122`.
+
 ## Process check correction
 
 The later source [CI run](https://github.com/MadMatt341/Stitch/actions/runs/38475193025) failed two inherited-pipe timing assertions.
