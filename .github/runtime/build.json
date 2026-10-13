@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "buildScripts": {
+    "repository": "https://github.com/shinchiro/mpv-winbuild-cmake.git",
+    "commit": "cd1edc11dc6887a50f705717619d879f5a93a488",
+    "patch": {
+      "path": "patches/mpv-winbuild-stitch.patch",
+      "sha256": "303CB6B719818DB24280054FFE6B99DB438FFA468469DB6C400EE2C69897BABD"
+    }
+  },
+  "ffmpeg": {
+    "repository": "https://github.com/FFmpeg/FFmpeg.git",
+    "commit": "946fcce07b6dcd0331c8cc609192aeff5e1924f8",
+    "version": "9.0.2"
+  },
+  "environment": {
+    "container": "ghcr.io/shinchiro/archlinux@sha256:9bef1a43edf26ad4048d851e8fef712285200f82ba09e9575a6862c7ff3e293a",
+    "gitCommitter": {
+      "name": "Stitch runtime build",
+      "email": "build@stitch.invalid"
+    }
+  },
+  "policy": {
+    "useBuildCache": false,
+    "runMovingSourceUpdate": false,
+    "publishBinaryWithoutSourceBundle": false
+  }
+}

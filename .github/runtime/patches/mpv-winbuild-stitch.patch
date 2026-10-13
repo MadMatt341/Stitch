@@ -1,0 +1,112 @@
+diff --git a/cmake/download_externalproject.cmake b/cmake/download_externalproject.cmake
+--- a/cmake/download_externalproject.cmake
++++ b/cmake/download_externalproject.cmake
+@@ -4,2 +4,3 @@ execute_process(
+     COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/ExternalProject
++    COMMAND_ERROR_IS_FATAL ANY
+ )
+@@ -8,8 +9,36 @@ if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/setup_done")
+     execute_process(
+-        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/ExternalProject
+         # Download github folder via https://download-directory.github.io/?url=https://github.com/Kitware/CMake/tree/v3.31.6/Modules/ExternalProject
+         COMMAND unzip ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CMake-${version}-Modules-ExternalProject.zip -d ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/ExternalProject
+-        COMMAND curl -sLO https://github.com/Kitware/CMake/raw/refs/tags/${version}/Modules/ExternalProject.cmake
++        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules
++        COMMAND_ERROR_IS_FATAL ANY
++    )
++    execute_process(
++        COMMAND git init cmake-source
++        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules
++        COMMAND_ERROR_IS_FATAL ANY
++    )
++    execute_process(
++        COMMAND git -C cmake-source remote add origin https://github.com/Kitware/CMake.git
++        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules
++        COMMAND_ERROR_IS_FATAL ANY
++    )
++    execute_process(
++        COMMAND git -C cmake-source fetch --depth=1 origin a9b14138fe83e134bc3da139857b5616695bab54
++        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules
++        COMMAND_ERROR_IS_FATAL ANY
++    )
++    execute_process(
++        COMMAND git -C cmake-source checkout FETCH_HEAD -- Modules/ExternalProject.cmake Copyright.txt
++        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules
++        COMMAND_ERROR_IS_FATAL ANY
++    )
++    execute_process(
++        COMMAND ${CMAKE_COMMAND} -E copy cmake-source/Modules/ExternalProject.cmake ExternalProject.cmake
++        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules
++        COMMAND_ERROR_IS_FATAL ANY
++    )
++    execute_process(
+         COMMAND touch setup_done
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules
++        COMMAND_ERROR_IS_FATAL ANY
+     )
+@@ -18,2 +47,3 @@ if(NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/cmake/Modules/setup_done")
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cmake
++        COMMAND_ERROR_IS_FATAL ANY
+     )
+diff --git a/packages/mpv.cmake b/packages/mpv.cmake
+--- a/packages/mpv.cmake
++++ b/packages/mpv.cmake
+@@ -26,3 +26,2 @@ ExternalProject_Add(mpv
+         libsixel
+-        curl
+     GIT_REPOSITORY https://github.com/mpv-player/mpv.git
+@@ -60,3 +59,3 @@ ExternalProject_Add(mpv
+         ${mpv_gl}
+-        -Dlibcurl=enabled
++        -Dlibcurl=disabled
+         -Dc_args='-Wno-error=int-conversion'
+diff --git a/toolchain/CMakeLists.txt b/toolchain/CMakeLists.txt
+--- a/toolchain/CMakeLists.txt
++++ b/toolchain/CMakeLists.txt
+@@ -6,6 +6,7 @@ list(APPEND ep
+     ${gcc_wrapper}
+     mingw-w64
+     mingw-w64-headers
++    windows-rs
+     cppwinrt
+     gcc
+     mingw-w64-crt
+diff --git a/toolchain/cppwinrt.cmake b/toolchain/cppwinrt.cmake
+--- a/toolchain/cppwinrt.cmake
++++ b/toolchain/cppwinrt.cmake
+@@ -1,4 +1,5 @@
+ ExternalProject_Add(cppwinrt
++    DEPENDS windows-rs
+     GIT_REPOSITORY https://github.com/microsoft/cppwinrt.git
+     SOURCE_DIR ${SOURCE_LOCATION}
+     GIT_CLONE_FLAGS "--filter=tree:0"
+@@ -10,7 +11,6 @@ ExternalProject_Add(cppwinrt
+         -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
+     BUILD_COMMAND ${EXEC} ninja -C <BINARY_DIR>
+     INSTALL_COMMAND ${EXEC} ninja -C <BINARY_DIR> install
+-            COMMAND ${EXEC} wget -O <BINARY_DIR>/Windows.winmd https://github.com/microsoft/windows-rs/raw/master/crates/libs/default/Windows.winmd
+-            COMMAND ${EXEC} cppwinrt -input <BINARY_DIR>/Windows.winmd -output ${MINGW_INSTALL_PREFIX}/include/
++            COMMAND ${EXEC} cppwinrt -input ${WINDOWS_RS_SOURCE}/crates/libs/default/Windows.winmd -output ${MINGW_INSTALL_PREFIX}/include/
+     LOG_DOWNLOAD 1 LOG_UPDATE 1 LOG_CONFIGURE 1 LOG_BUILD 1 LOG_INSTALL 1
+ )
+diff --git a/toolchain/windows-rs.cmake b/toolchain/windows-rs.cmake
+new file mode 100644
+--- /dev/null
++++ b/toolchain/windows-rs.cmake
+@@ -0,0 +1,16 @@
++ExternalProject_Add(windows-rs
++    GIT_REPOSITORY https://github.com/microsoft/windows-rs.git
++    GIT_TAG 845e42a4328ec5b54b97f965798589d997cad177
++    SOURCE_DIR ${SOURCE_LOCATION}
++    GIT_CLONE_FLAGS "--filter=tree:0"
++    UPDATE_COMMAND ""
++    CONFIGURE_COMMAND ""
++    BUILD_COMMAND ""
++    INSTALL_COMMAND ""
++    LOG_DOWNLOAD 1 LOG_UPDATE 1
++)
++
++force_rebuild_git(windows-rs)
++get_property(WINDOWS_RS_SOURCE
++    TARGET windows-rs
++    PROPERTY _EP_SOURCE_DIR)
