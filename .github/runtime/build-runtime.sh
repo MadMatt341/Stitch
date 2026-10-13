@@ -60,8 +60,10 @@ SOURCE_DATE_EPOCH=$(git -C "$build_script_root" show -s --format=%ct HEAD)
 # Keep FFmpeg at the current application pin and build both required tools.
 python3 - "$build_script_root/packages/ffmpeg.cmake" "$ffmpeg_commit" \
     "$build_script_root/packages/nvcodec-headers.cmake" "$nvcodec_commit" \
-    "$build_script_root" "$gnu_mirror" <<'PY'
+    "$build_script_root" "$gnu_mirror" "$manifest" <<'PY'
 from pathlib import Path
+import json
+import re
 import sys
 path = Path(sys.argv[1])
 text = path.read_text()
@@ -88,6 +90,23 @@ for recipe in Path(sys.argv[5]).rglob("*.cmake"):
         recipe.write_text(updated, newline="\n")
         changed += 1
 assert changed == 5, f"Unexpected GNU mirror recipe count: {changed}"
+manifest = json.loads(Path(sys.argv[7]).read_text())
+for package, record in manifest["dependencySources"].items():
+    assert re.fullmatch(r"[0-9a-f]{40}", record["revision"]), package
+    recipe = Path(sys.argv[5]) / record["recipe"]
+    text = recipe.read_text()
+    assert text.count("GIT_REPOSITORY ") == 1, package
+    text, replaced = re.subn(
+        r"(?m)^\s*GIT_TAG[^\n]*\n", "", text
+    )
+    assert replaced <= 1, package
+    text, inserted = re.subn(
+        r"(?m)^(\s*GIT_REPOSITORY[^\n]*\n)",
+        lambda match: match.group(1) + f"    GIT_TAG {record['revision']}\n",
+        text,
+    )
+    assert inserted == 1, package
+    recipe.write_text(text, newline="\n")
 PY
 commands_file="$work_root/BUILD-COMMANDS.txt"
 cat > "$commands_file" <<EOF
@@ -125,6 +144,18 @@ printf '%s  %s\n' 9DDFC6F5E5C3D29522F35E1CAC566617E9D28CCBC6CCB072C79FA9949CDBE3
     "$source_root/windows-rs/crates/libs/default/Windows.winmd" | sha256sum --check
 [[ $(git -C "$source_root/ffmpeg" rev-parse HEAD) == "$ffmpeg_commit" ]]
 [[ $(git -C "$source_root/nvcodec-headers" rev-parse HEAD) == "$nvcodec_commit" ]]
+python3 - "$manifest" "$source_root" <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+manifest = json.loads(Path(sys.argv[1]).read_text())
+for package, record in manifest["dependencySources"].items():
+    actual = subprocess.check_output(
+        ["git", "-C", str(Path(sys.argv[2]) / package), "rev-parse", "HEAD"], text=True
+    ).strip()
+    assert actual == record["revision"], (package, actual, record["revision"])
+PY
 ninja -C "$build_root" gcc
 ninja -C "$build_root" ffmpeg
 [[ $(git -C "$source_root/ffmpeg" rev-parse HEAD) == "$ffmpeg_commit" ]]

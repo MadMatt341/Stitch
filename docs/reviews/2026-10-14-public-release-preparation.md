@@ -49,10 +49,16 @@ Stitch now uses the same HTTPS mirror with the original SHA-256 and SHA-512 valu
 The source capture procedure also records checksums for downloaded archive files beside the source folders.
 Superseded runtime runs were canceled before a new candidate was started.
 
-The active [runtime run](https://github.com/MadMatt341/Stitch/actions/runs/38475195325) uses source revision `ef3b29414e578f5f5cf56158800e89bb892045b4`.
-Its result remains a candidate until source review and Windows media checks pass.
+The [runtime run](https://github.com/MadMatt341/Stitch/actions/runs/38475195325) used source revision `ef3b29414e578f5f5cf56158800e89bb892045b4`.
+The subsequent dependency pin change replaces that candidate.
 Successful local NVIDIA encoding with this runtime remains pending.
 No public portable application ZIP exists at this checkpoint.
+
+TVC's later build found an incompatibility between current MinGW headers and the current Intel VPL source.
+Stitch now pins 85 additional Git sources from the previous verified TVC inventory.
+This includes MinGW headers, VPL, x264, x265, and unused sources downloaded by the shared build system.
+FFmpeg 9.0.2, NVIDIA API 13.0, and the Windows metadata pin stay as selected.
+The build verifies each downloaded Git revision before compilation.
 
 ## Process check correction
 

@@ -31,5 +31,348 @@
     "useBuildCache": false,
     "runMovingSourceUpdate": false,
     "publishBinaryWithoutSourceBundle": false
-  }
+  },
+  "dependencySources": {
+    "amf-headers": {
+      "recipe": "packages/amf-headers.cmake",
+      "revision": "c35f613aea2e5057a688c979e75b1cf24253297e"
+    },
+    "angle-headers": {
+      "recipe": "packages/angle-headers.cmake",
+      "revision": "0cb8023c01f92b29f3738ea7472d06f8f059ed84"
+    },
+    "aom": {
+      "recipe": "packages/aom.cmake",
+      "revision": "2f6ab661a0eaaa6792ac63c64ab9ae8e1ca7f11a"
+    },
+    "avisynth-headers": {
+      "recipe": "packages/avisynth-headers.cmake",
+      "revision": "21fdc997f9724b994896ba5520ddf64d677976b3"
+    },
+    "brotli": {
+      "recipe": "packages/brotli.cmake",
+      "revision": "8e10eeb3378f6c459dbaf033ca6727e9816afccb"
+    },
+    "bzip2": {
+      "recipe": "packages/bzip2.cmake",
+      "revision": "66c46b8c9436613fd81bc5d03f63a61933a4dcc3"
+    },
+    "c-ares": {
+      "recipe": "packages/c-ares.cmake",
+      "revision": "1ff6b69eb10f3a0eedeaef22d84af87e3a457832"
+    },
+    "cppwinrt": {
+      "recipe": "toolchain/cppwinrt.cmake",
+      "revision": "d6cff316a991152071038668fb586a8b5ab1d51f"
+    },
+    "dav1d": {
+      "recipe": "packages/dav1d.cmake",
+      "revision": "52b9d3d3ec525f5a20849145fa0e879d585f4911"
+    },
+    "davs2": {
+      "recipe": "packages/davs2.cmake",
+      "revision": "f50435051b72c168c2b566c544e27fcff71ba61a"
+    },
+    "expat": {
+      "recipe": "packages/expat.cmake",
+      "revision": "7a3215e827662296c0a38e28988c6eb509baafd5"
+    },
+    "fast_float": {
+      "recipe": "packages/fast_float.cmake",
+      "revision": "13ecd70727edbccda961e15c06acba5767b841f2"
+    },
+    "fontconfig": {
+      "recipe": "packages/fontconfig.cmake",
+      "revision": "079bbaf61235aad016f7126b8e2896f275cb3de5"
+    },
+    "freetype2": {
+      "recipe": "packages/freetype2.cmake",
+      "revision": "9e9d3b73f31367dbb4261f93c727a277f6632c77"
+    },
+    "fribidi": {
+      "recipe": "packages/fribidi.cmake",
+      "revision": "5d829288e00b9dd709c8050f469ad0b2737f822c"
+    },
+    "game-music-emu": {
+      "recipe": "packages/game-music-emu.cmake",
+      "revision": "a5216b1dafe476b6de36a316a151c64df575197a"
+    },
+    "glad": {
+      "recipe": "packages/glad.cmake",
+      "revision": "e3c14f906127dea49ead20ff4d5878294d08b7ab"
+    },
+    "glslang": {
+      "recipe": "packages/glslang.cmake",
+      "revision": "2cc82463217481bf7f187d4f9f3bdf652de363dd"
+    },
+    "graphengine": {
+      "recipe": "packages/graphengine.cmake",
+      "revision": "91c6af4c795c5396d8b974f24b4d2e2ecca04e2d"
+    },
+    "harfbuzz": {
+      "recipe": "packages/harfbuzz.cmake",
+      "revision": "817b958f22e4b223428e88157fdeb1c06110c181"
+    },
+    "highway": {
+      "recipe": "packages/highway.cmake",
+      "revision": "f5d8b7071638c62d93d2f1067ccf166aef920263"
+    },
+    "lame": {
+      "recipe": "packages/lame.cmake",
+      "revision": "9a5b35c430a2e6d150d65a96c7d7acdd64962a8f"
+    },
+    "lcms2": {
+      "recipe": "packages/lcms2.cmake",
+      "revision": "a5b898c7e3985550aab846a2abb4ae08904a857f"
+    },
+    "libarchive": {
+      "recipe": "packages/libarchive.cmake",
+      "revision": "34c4a536a88d5114cfab7ca9bff48c0d235fd53a"
+    },
+    "libaribcaption": {
+      "recipe": "packages/libaribcaption.cmake",
+      "revision": "c64c23b8905ba514b87c9789269e9f66f949ffe0"
+    },
+    "libass": {
+      "recipe": "packages/libass.cmake",
+      "revision": "3087d2b2ffda76602a17f9b09d25cb8addc8d313"
+    },
+    "libbluray": {
+      "recipe": "packages/libbluray.cmake",
+      "revision": "065247e5ef40ccf39857db81e2c1368354a23ef8"
+    },
+    "libbs2b": {
+      "recipe": "packages/libbs2b.cmake",
+      "revision": "9b38bfee746a6a59e18902780d45b0cbfcfbb716"
+    },
+    "libdvdcss": {
+      "recipe": "packages/libdvdcss.cmake",
+      "revision": "811ce97a1d4d1c9d936f4b2707f533a9ef768251"
+    },
+    "libdvdnav": {
+      "recipe": "packages/libdvdnav.cmake",
+      "revision": "2ffc50b5c37a6ddc086829203fc44e95588198dd"
+    },
+    "libdvdread": {
+      "recipe": "packages/libdvdread.cmake",
+      "revision": "9e781eaa2894f73ba96386bc6a9ac96975620cf9"
+    },
+    "libjpeg": {
+      "recipe": "packages/libjpeg.cmake",
+      "revision": "d85296068d9858a61ea8f2d785de2688680fff4b"
+    },
+    "libjxl": {
+      "recipe": "packages/libjxl.cmake",
+      "revision": "d089091afeb7b00b3d0fec6f019d35eaa3b2b410"
+    },
+    "libmodplug": {
+      "recipe": "packages/libmodplug.cmake",
+      "revision": "d1b97ed0020bc620a059d3675d1854b40bd2608d"
+    },
+    "libmysofa": {
+      "recipe": "packages/libmysofa.cmake",
+      "revision": "90531bdb0b485dd36e8a14b3e37ce1c47c54d669"
+    },
+    "libplacebo": {
+      "recipe": "packages/libplacebo.cmake",
+      "revision": "22ee762e8e0890fc54068beb670310f0edce7263"
+    },
+    "libpng": {
+      "recipe": "packages/libpng.cmake",
+      "revision": "cae474558968f015124d7369556a4b1016276e3a"
+    },
+    "libpsl": {
+      "recipe": "packages/libpsl.cmake",
+      "revision": "aa3a80e18f25caf3916636c8668dcc0fff7c016d"
+    },
+    "libsamplerate": {
+      "recipe": "packages/libsamplerate.cmake",
+      "revision": "0844c208f683527c08ea8a80acc13b398aa9c8bf"
+    },
+    "libsdl2": {
+      "recipe": "packages/libsdl2.cmake",
+      "revision": "a2e7c76bda17c853ba93c7d2c9fdddf8a9d621d1"
+    },
+    "libsixel": {
+      "recipe": "packages/libsixel.cmake",
+      "revision": "af12e5bc6f3f69ad83479da85ddb371420da9b17"
+    },
+    "libsoxr": {
+      "recipe": "packages/libsoxr.cmake",
+      "revision": "945b592b70470e29f917f4de89b4281fbbd540c0"
+    },
+    "libsrt": {
+      "recipe": "packages/libsrt.cmake",
+      "revision": "fcae57145c000a9e7b72aa777adb8f85c2463242"
+    },
+    "libssh": {
+      "recipe": "packages/libssh.cmake",
+      "revision": "7f68eb66592273080951b8b6150d564fbc532dcb"
+    },
+    "libudfread": {
+      "recipe": "packages/libudfread.cmake",
+      "revision": "663164234b9da91556ea8b68db3402197c376471"
+    },
+    "libunibreak": {
+      "recipe": "packages/libunibreak.cmake",
+      "revision": "3ce4bfa3129ff3738046a44a6db533d2ce25af2b"
+    },
+    "libva": {
+      "recipe": "packages/libva.cmake",
+      "revision": "6b07f7100512817f736967e899b8c26313c20623"
+    },
+    "libvpl": {
+      "recipe": "packages/libvpl.cmake",
+      "revision": "674d015bcb294bc39fa276e99a652ea045423e82"
+    },
+    "libvpx": {
+      "recipe": "packages/libvpx.cmake",
+      "revision": "5ae5478f99abbe42101906d955458b3c98b587dd"
+    },
+    "libwebp": {
+      "recipe": "packages/libwebp.cmake",
+      "revision": "4fe551df7ecf3b30ff515397e2a1c4f54b8ee80c"
+    },
+    "libxml2": {
+      "recipe": "packages/libxml2.cmake",
+      "revision": "c63248941708bc1d2e3a4292954593312212f6ca"
+    },
+    "libzimg": {
+      "recipe": "packages/libzimg.cmake",
+      "revision": "f6cc75ad23db1bb9c53673c15523e6b6e960ffc6"
+    },
+    "libzvbi": {
+      "recipe": "packages/libzvbi.cmake",
+      "revision": "d3a5ee9f2b047bf16cd1ee5ccf6ec05ee75409d0"
+    },
+    "luajit": {
+      "recipe": "packages/luajit.cmake",
+      "revision": "1c0778ea67638ef15a8c3888c0f2621527694526"
+    },
+    "mingw-w64": {
+      "recipe": "toolchain/mingw-w64.cmake",
+      "revision": "17e9edf7970bfb0a83def358e46937b766fd9cf3"
+    },
+    "mpv": {
+      "recipe": "packages/mpv.cmake",
+      "revision": "e7191f2a65d64af266c5c80793e79d2f4b92b789"
+    },
+    "mpv-packaging": {
+      "recipe": "packages/mpv-packaging.cmake",
+      "revision": "1c534ce8c21fab0be2a394ad73decc15e015693e"
+    },
+    "mujs": {
+      "recipe": "packages/mujs.cmake",
+      "revision": "cfd23709d48b41e0a96853efc095933332edf366"
+    },
+    "nghttp2": {
+      "recipe": "packages/nghttp2.cmake",
+      "revision": "a0bebf513785f84ea4fa62d47c52f47d5fcc46ad"
+    },
+    "nghttp3": {
+      "recipe": "packages/nghttp3.cmake",
+      "revision": "f0c4ec91adce4b33174faa0e487a442b2fd5dd26"
+    },
+    "ngtcp2": {
+      "recipe": "packages/ngtcp2.cmake",
+      "revision": "994c858f8fa712dd301c87a6e3fa7184d87fabb3"
+    },
+    "ogg": {
+      "recipe": "packages/ogg.cmake",
+      "revision": "be05b13e98b048f0b5a0f5fa8ce514d56db5f822"
+    },
+    "openal-soft": {
+      "recipe": "packages/openal-soft.cmake",
+      "revision": "91317a4f15fbfd9477b871b0c324c99a2c65dc11"
+    },
+    "openssl": {
+      "recipe": "packages/openssl.cmake",
+      "revision": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702"
+    },
+    "opus": {
+      "recipe": "packages/opus.cmake",
+      "revision": "03647f524a40b05a1898522e92033810b58103c7"
+    },
+    "rubberband": {
+      "recipe": "packages/rubberband.cmake",
+      "revision": "e4296ac80b1170018a110bc326fd0d45a0eb27d6"
+    },
+    "shaderc": {
+      "recipe": "packages/shaderc.cmake",
+      "revision": "7060a6615a1c6e2515e696651eea685524ecadb5"
+    },
+    "speex": {
+      "recipe": "packages/speex.cmake",
+      "revision": "05895229896dc942d453446eba6f9f5ddcf95422"
+    },
+    "spirv-cross": {
+      "recipe": "packages/spirv-cross.cmake",
+      "revision": "606b3505a7b74c6a637550936d37dbbae299eb3b"
+    },
+    "spirv-headers": {
+      "recipe": "packages/spirv-headers.cmake",
+      "revision": "0d25db97cb9b8f725e4c95e4553001710e7fc39d"
+    },
+    "spirv-tools": {
+      "recipe": "packages/spirv-tools.cmake",
+      "revision": "e39e5c5838bc4b4162c349f2a2e5f163efe5432f"
+    },
+    "subrandr": {
+      "recipe": "packages/subrandr.cmake",
+      "revision": "f2d74d8596bba07a82bfc0f389cd562ac8d71a00"
+    },
+    "svtav1": {
+      "recipe": "packages/svtav1.cmake",
+      "revision": "fd116158a00986d923db8a1fdddd0dbd5fd0e240"
+    },
+    "uavs3d": {
+      "recipe": "packages/uavs3d.cmake",
+      "revision": "0e20d2c291853f196c68922a264bcd8471d75b68"
+    },
+    "uchardet": {
+      "recipe": "packages/uchardet.cmake",
+      "revision": "06029ec3340cdf6bf9a6a537dafb3f39eda0560e"
+    },
+    "vapoursynth": {
+      "recipe": "packages/vapoursynth.cmake",
+      "revision": "e46204429041e95a881b61eedddd46c08f9a307c"
+    },
+    "vorbis": {
+      "recipe": "packages/vorbis.cmake",
+      "revision": "c2aa86b05e981c96bf381fc6aa11cdd03eccc2fb"
+    },
+    "vulkan": {
+      "recipe": "packages/vulkan.cmake",
+      "revision": "83ddfc5ec5ca64ddd1055cefa1559c568101075a"
+    },
+    "vulkan-header": {
+      "recipe": "packages/vulkan-header.cmake",
+      "revision": "0b7f383797fa7be53ae28213e001ae60668ee511"
+    },
+    "x264": {
+      "recipe": "packages/x264.cmake",
+      "revision": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee"
+    },
+    "x265": {
+      "recipe": "packages/x265.cmake",
+      "revision": "fe9bc85c35f797120fb5ef8edd0ab814ea8c735a"
+    },
+    "xxhash": {
+      "recipe": "packages/xxhash.cmake",
+      "revision": "c0b5ea995d66691734b1a79ad89e73a0d2fd5a53"
+    },
+    "xz": {
+      "recipe": "packages/xz.cmake",
+      "revision": "3d078b52adbff566ccfc51067dfbf742ecf3ef86"
+    },
+    "zlib": {
+      "recipe": "packages/zlib.cmake",
+      "revision": "7cf22b9e19e08cf6719e48433681349c2a5f1d7e"
+    },
+    "zstd": {
+      "recipe": "packages/zstd.cmake",
+      "revision": "82d322c4973d9e2968d94047a40892bc6d9a9bdf"
+    }
+  },
+  "dependencySourceReference": "https://github.com/MadMatt341/TinyVideoCutter-Releases/releases/download/libmpv-e7191f2a65d6-tvc1/RESOLVED-SOURCES.tsv"
 }
