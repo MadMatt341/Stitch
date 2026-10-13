@@ -56,6 +56,7 @@ The manifest pins their upstream parents and expected patched trees.
 The build keeps the specified recipe patches and verifies the resulting trees for compiled sources.
 Unused sources stay at their upstream parents.
 Fontconfig uses its official GitHub mirror at the same source revision.
+The workflow downloads the compiler toolchain sources before it verifies their Git revisions.
 
 The build makes `ffmpeg.exe` and `ffprobe.exe` for generic Windows x64 processors.
 Its feature configuration comes from those build scripts.

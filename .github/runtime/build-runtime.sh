@@ -134,7 +134,7 @@ cmake -DTARGET_ARCH=x86_64-w64-mingw32 -DCOMPILER_TOOLCHAIN=gcc \\
   -DSINGLE_SOURCE_LOCATION=<work>/src_packages -DRUSTUP_LOCATION=<work>/rustup \\
   -DENABLE_CCACHE=OFF -G Ninja -B <work>/build_x86_64 -S <work>/mpv-winbuild-cmake
 ninja -C <work>/build_x86_64 download
-ninja -C <work>/build_x86_64 windows-rs-download
+ninja -C <work>/build_x86_64 windows-rs-download cppwinrt-download mingw-w64-download
 ninja -C <work>/build_x86_64 gcc
 ninja -C <work>/build_x86_64 ffmpeg
 
@@ -146,7 +146,7 @@ cmake -DTARGET_ARCH=x86_64-w64-mingw32 -DCOMPILER_TOOLCHAIN=gcc \
     -DENABLE_CCACHE=OFF -G Ninja -B "$build_root" -S "$build_script_root"
 [[ $(git -C "$build_root/cmake/Modules/cmake-source" rev-parse FETCH_HEAD) == a9b14138fe83e134bc3da139857b5616695bab54 ]]
 ninja -C "$build_root" download
-ninja -C "$build_root" windows-rs-download
+ninja -C "$build_root" windows-rs-download cppwinrt-download mingw-w64-download
 [[ $(git -C "$source_root/windows-rs" rev-parse HEAD) == 845e42a4328ec5b54b97f965798589d997cad177 ]]
 printf '%s  %s\n' 9DDFC6F5E5C3D29522F35E1CAC566617E9D28CCBC6CCB072C79FA9949CDBE336 \
     "$source_root/windows-rs/crates/libs/default/Windows.winmd" | sha256sum --check
@@ -159,8 +159,10 @@ import subprocess
 import sys
 manifest = json.loads(Path(sys.argv[1]).read_text())
 for package, record in manifest["dependencySources"].items():
+    source = Path(sys.argv[2]) / package
+    assert (source / ".git").exists(), f"Missing independent Git checkout: {package}"
     actual = subprocess.check_output(
-        ["git", "-C", str(Path(sys.argv[2]) / package), "rev-parse", "HEAD"], text=True
+        ["git", "-C", str(source), "rev-parse", "HEAD"], text=True
     ).strip()
     assert actual == record["revision"], (package, actual, record["revision"])
 PY
