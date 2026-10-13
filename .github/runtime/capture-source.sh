@@ -81,6 +81,7 @@ cp "$distribution_root/build.json" "$metadata_root/build.json"
 cp "$commands_file" "$metadata_root/BUILD-COMMANDS.txt"
 cp "$distribution_root/build-runtime.sh" "$metadata_root/build-runtime.sh"
 cp "$distribution_root/capture-source.sh" "$metadata_root/capture-source.sh"
+cp "$distribution_root/collect-licenses.py" "$metadata_root/collect-licenses.py"
 cp "$distribution_root/COPYING" "$metadata_root/COPYING"
 
 build_patch_relative=$(python3 - "$distribution_root/build.json" <<'PY'

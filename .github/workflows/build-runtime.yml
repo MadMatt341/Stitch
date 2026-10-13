@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     container:
-      image: ghcr.io/shinchiro/archlinux@sha256:9bef1a43edf26ad4048d851e8fef712285200f82ba09e9575a6862c7ff3e293a
+      image: ghcr.io/shinchiro/archlinux@sha256:c7dffe77b57d98b10e327dde12d3977faf4cb90aa7cb4f5eeac4e9d68d724239
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build runtime and capture sources

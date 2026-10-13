@@ -46,13 +46,17 @@ The [development reference](development.md#runtime-provenance) owns the current 
 The user selected a verified runtime before publication.
 `.github/runtime/build.json` owns the candidate build inputs.
 The candidate keeps the FFmpeg 9.0.2 source revision.
-It uses TVC's specified build-script revision and container.
+It uses TVC's specified build-script revision and a specified upstream build container.
 The build makes `ffmpeg.exe` and `ffprobe.exe` for generic Windows x64 processors.
 Its feature configuration comes from those build scripts.
 It does not establish compatibility by comparison with the Gyan archive.
 
 The build keeps resolved sources, source changes, build scripts, bootstrap inputs, commands, and configuration.
 The runtime archive and source archive have SHA-256 records.
+The runtime includes unchanged license notices from the captured source trees.
+Its `LICENSES.json` file records their source paths and hashes.
+This collection includes build tools and unused source packages.
+
 The Windows job checks those records and runs the media acceptance check with the candidate.
 A successful build remains a candidate until its source record and final application checks pass.
 

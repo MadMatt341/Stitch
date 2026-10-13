@@ -13,7 +13,7 @@ manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 assert manifest["schemaVersion"] == 1
 assert all(value is False for value in manifest["policy"].values())
 assert manifest["ffmpeg"]["repository"] == "https://github.com/FFmpeg/FFmpeg.git"
-assert manifest["environment"]["container"] == "ghcr.io/shinchiro/archlinux@sha256:9bef1a43edf26ad4048d851e8fef712285200f82ba09e9575a6862c7ff3e293a"
+assert manifest["environment"]["container"] == "ghcr.io/shinchiro/archlinux@sha256:c7dffe77b57d98b10e327dde12d3977faf4cb90aa7cb4f5eeac4e9d68d724239"
 PY
 work_root="$repository_root/build/runtime-work"
 output_root="$repository_root/build/runtime-output"
@@ -123,6 +123,7 @@ Build scripts revision: $build_commit
 The companion source archive contains dependency sources, patches, and build commands.
 Keep that archive available with each public runtime download.
 EOF
+python3 "$distribution_root/collect-licenses.py" "$source_root" "$runtime_stage"
 binary_archive="$output_root/ffmpeg-stitch-9.0.2-win-x64.zip"
 (cd "$runtime_stage" && 7z a "$binary_archive" ./*)
 configured_root="$work_root/configured-build-record"
