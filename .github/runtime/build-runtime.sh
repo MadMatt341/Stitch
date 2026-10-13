@@ -126,7 +126,8 @@ import re
 import sys
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 packages = set(manifest["dependencySources"]) | {"windows-rs", "ffmpeg", "nvcodec-headers"}
-assert all(re.fullmatch(r"[a-z0-9-]+", package) for package in packages)
+invalid = [package for package in packages if not re.fullmatch(r"[a-z0-9_-]+", package)]
+assert not invalid, invalid
 for package in sorted(packages):
     print(f"{package}-download")
 PY
