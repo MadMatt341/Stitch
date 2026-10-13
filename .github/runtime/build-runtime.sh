@@ -33,6 +33,7 @@ PY
 }
 build_commit=$(read_value buildScripts.commit)
 ffmpeg_commit=$(read_value ffmpeg.commit)
+nvcodec_commit=$(read_value nvcodec.commit)
 patch_relative=$(read_value buildScripts.patch.path)
 patch_file="$distribution_root/$patch_relative"
 patch_hash=$(read_value buildScripts.patch.sha256)
@@ -56,7 +57,8 @@ git -C "$build_script_root" add --intent-to-add toolchain/windows-rs.cmake
 SOURCE_DATE_EPOCH=$(git -C "$build_script_root" show -s --format=%ct HEAD)
 
 # Keep FFmpeg at the current application pin and build both required tools.
-python3 - "$build_script_root/packages/ffmpeg.cmake" "$ffmpeg_commit" <<'PY'
+python3 - "$build_script_root/packages/ffmpeg.cmake" "$ffmpeg_commit" \
+    "$build_script_root/packages/nvcodec-headers.cmake" "$nvcodec_commit" <<'PY'
 from pathlib import Path
 import sys
 path = Path(sys.argv[1])
@@ -67,12 +69,20 @@ assert text.count("--disable-ffprobe") == 1
 text = text.replace(needle, needle + f"    GIT_TAG {sys.argv[2]}\n")
 text = text.replace("--disable-ffprobe", "--enable-ffprobe")
 path.write_text(text, newline="\n")
+path = Path(sys.argv[3])
+text = path.read_text()
+needle = "    GIT_REPOSITORY https://github.com/FFmpeg/nv-codec-headers.git\n"
+assert text.count(needle) == 1
+text = text.replace(needle, needle + f"    GIT_TAG {sys.argv[4]}\n")
+path.write_text(text, newline="\n")
 PY
 commands_file="$work_root/BUILD-COMMANDS.txt"
 cat > "$commands_file" <<EOF
 Build scripts: $(read_value buildScripts.repository)
 Build revision: $build_commit
 FFmpeg revision: $ffmpeg_commit
+NVIDIA headers revision: $nvcodec_commit
+NVIDIA API version: $(read_value nvcodec.apiVersion)
 Container: $(read_value environment.container)
 Patch: $patch_relative
 Patch SHA-256: $patch_hash
@@ -100,6 +110,7 @@ ninja -C "$build_root" windows-rs-download
 printf '%s  %s\n' 9DDFC6F5E5C3D29522F35E1CAC566617E9D28CCBC6CCB072C79FA9949CDBE336 \
     "$source_root/windows-rs/crates/libs/default/Windows.winmd" | sha256sum --check
 [[ $(git -C "$source_root/ffmpeg" rev-parse HEAD) == "$ffmpeg_commit" ]]
+[[ $(git -C "$source_root/nvcodec-headers" rev-parse HEAD) == "$nvcodec_commit" ]]
 ninja -C "$build_root" gcc
 ninja -C "$build_root" ffmpeg
 [[ $(git -C "$source_root/ffmpeg" rev-parse HEAD) == "$ffmpeg_commit" ]]
@@ -120,6 +131,8 @@ FFmpeg 9.0.2, Windows x64, built for Stitch.
 License: GPL-3.0-or-later.
 FFmpeg source revision: $ffmpeg_commit
 Build scripts revision: $build_commit
+NVIDIA headers revision: $nvcodec_commit
+NVIDIA API version: $(read_value nvcodec.apiVersion)
 The companion source archive contains dependency sources, patches, and build commands.
 Keep that archive available with each public runtime download.
 EOF
@@ -160,7 +173,7 @@ for entry in src_packages/ffmpeg/ src_packages/x264/ src_packages/x265/ \
     bootstrap/cmake/Modules/ExternalProject.cmake metadata/LOCAL-CHANGES/mpv-winbuild-cmake.patch; do
     grep -Fq "/$entry" "$work_root/source-listing.txt"
 done
-python3 - "$output_root" "$runtime_stage" "$build_commit" "$ffmpeg_commit" <<'PY'
+python3 - "$output_root" "$runtime_stage" "$build_commit" "$ffmpeg_commit" "$nvcodec_commit" <<'PY'
 import hashlib
 import json
 from pathlib import Path
@@ -178,6 +191,8 @@ result = {
     "target": "win-x64",
     "buildScriptsCommit": sys.argv[3],
     "ffmpegCommit": sys.argv[4],
+    "nvcodecCommit": sys.argv[5],
+    "nvcodecApiVersion": "13.0",
     "archive": record(output / "ffmpeg-stitch-9.0.2-win-x64.zip"),
     "binaries": [record(runtime / name) for name in ("ffmpeg.exe", "ffprobe.exe")],
     "correspondingSource": record(next(output.glob("ffmpeg-stitch-source-*.tar.zst"))),

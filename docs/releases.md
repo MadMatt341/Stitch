@@ -46,6 +46,7 @@ The [development reference](development.md#runtime-provenance) owns the current 
 The user selected a verified runtime before publication.
 `.github/runtime/build.json` owns the candidate build inputs.
 The candidate keeps the FFmpeg 9.0.2 source revision.
+It pins NVIDIA API 13.0 headers to permit encoding with the selected driver baseline.
 It uses TVC's specified build-script revision and a specified upstream build container.
 The build makes `ffmpeg.exe` and `ffprobe.exe` for generic Windows x64 processors.
 Its feature configuration comes from those build scripts.
