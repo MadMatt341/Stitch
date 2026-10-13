@@ -89,7 +89,10 @@ Export settings checks must examine source mode defaults, file size calculations
 They must distinguish HDR transfer metadata from high bit depth.
 They must examine Main10 output, color normalization, quality encoding, and color preservation through CPU recovery.
 They must examine one CPU retry after NVIDIA failure and no retry after cancellation.
+
 Process timeout checks must examine cleanup when a child process keeps output pipes open.
+Inherited-pipe shutdown checks measure cleanup after the helper reports that its child has started.
+PowerShell startup time is separate from the four-second cleanup limit.
 These deterministic checks cannot depend on NVIDIA hardware failure.
 
 Before media or native UI checks, run `scripts/build.ps1` from the project root.

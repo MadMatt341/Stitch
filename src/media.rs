@@ -2363,20 +2363,19 @@ mod tests {
 
     #[test]
     fn finished_process_does_not_wait_for_descendants_with_inherited_pipes() {
-        let started = std::time::Instant::now();
-        let result = process(
-            Path::new("cmd.exe"),
-            &[
-                "/d".into(),
-                "/c".into(),
-                "powershell.exe -NoProfile -Command Start-Sleep -Seconds 1 & start /b powershell.exe -NoProfile -Command Start-Sleep -Seconds 6"
-                    .into(),
-            ],
+        let mut ready = None;
+        let mut progress = |_| ready = Some(Instant::now());
+        let result = process_with_timeout(
+            Path::new("powershell.exe"),
+            &inherited_pipe_helper(200),
             &AtomicBool::new(false),
-            None,
+            Some(&mut progress),
+            Some(Duration::from_secs(30)),
         );
-        let elapsed = started.elapsed();
-        println!("Process shutdown: {elapsed:?}; output: {result:?}");
+        let elapsed = ready
+            .expect("The inherited-pipe helper did not become ready.")
+            .elapsed();
+        println!("Process shutdown after readiness: {elapsed:?}; output: {result:?}");
         assert!(result.is_ok(), "{result:?}");
         assert!(
             elapsed < Duration::from_secs(4),
@@ -2388,29 +2387,38 @@ mod tests {
     fn cancellation_ends_descendants_with_inherited_pipes() {
         let cancel = AtomicBool::new(false);
         let mut saw_progress = false;
+        let mut ready = None;
         let mut progress = |_| {
             saw_progress = true;
+            ready = Some(Instant::now());
             cancel.store(true, Ordering::Relaxed);
         };
-        let started = std::time::Instant::now();
-        let result = process(
-            Path::new("cmd.exe"),
-            &[
-                "/d".into(),
-                "/c".into(),
-                "powershell.exe -NoProfile -Command Start-Sleep -Milliseconds 100 & start /b powershell.exe -NoProfile -Command Start-Sleep -Seconds 6 & echo out_time_us=1000000& powershell.exe -NoProfile -Command Start-Sleep -Seconds 6"
-                    .into(),
-            ],
+        let result = process_with_timeout(
+            Path::new("powershell.exe"),
+            &inherited_pipe_helper(30_000),
             &cancel,
             Some(&mut progress),
+            Some(Duration::from_secs(30)),
         );
-        let elapsed = started.elapsed();
-        println!("Canceled process shutdown: {elapsed:?}");
+        let elapsed = ready
+            .expect("The inherited-pipe helper did not become ready.")
+            .elapsed();
+        println!("Canceled process shutdown after readiness: {elapsed:?}");
         assert!(saw_progress);
         assert_eq!(result.unwrap_err(), "Canceled");
         assert!(
             elapsed < Duration::from_secs(4),
             "An inherited pipe delayed cancellation for {elapsed:?}"
         );
+    }
+
+    fn inherited_pipe_helper(parent_wait_ms: u64) -> Vec<String> {
+        vec![
+            "-NoProfile".into(),
+            "-Command".into(),
+            format!(
+                "$null = Start-Process powershell.exe -ArgumentList @('-NoProfile','-Command','Start-Sleep -Seconds 30') -NoNewWindow -PassThru; Write-Output 'out_time_us=1000000'; Start-Sleep -Milliseconds {parent_wait_ms}"
+            ),
+        ]
     }
 }
