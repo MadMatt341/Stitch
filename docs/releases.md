@@ -48,9 +48,11 @@ The user selected a verified runtime before publication.
 The candidate keeps the FFmpeg 9.0.2 source revision.
 It pins NVIDIA API 13.0 headers to permit encoding with the selected driver baseline.
 It uses TVC's specified build-script revision and a specified upstream build container.
+
 The build makes `ffmpeg.exe` and `ffprobe.exe` for generic Windows x64 processors.
 Its feature configuration comes from those build scripts.
 It does not establish compatibility by comparison with the Gyan archive.
+GNU toolchain archives use the specified HTTPS mirror with the original checksum checks.
 
 The build keeps resolved sources, source changes, build scripts, bootstrap inputs, commands, and configuration.
 The runtime archive and source archive have SHA-256 records.

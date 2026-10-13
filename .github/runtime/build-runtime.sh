@@ -34,6 +34,7 @@ PY
 build_commit=$(read_value buildScripts.commit)
 ffmpeg_commit=$(read_value ffmpeg.commit)
 nvcodec_commit=$(read_value nvcodec.commit)
+gnu_mirror=$(read_value environment.gnuMirror)
 patch_relative=$(read_value buildScripts.patch.path)
 patch_file="$distribution_root/$patch_relative"
 patch_hash=$(read_value buildScripts.patch.sha256)
@@ -58,7 +59,8 @@ SOURCE_DATE_EPOCH=$(git -C "$build_script_root" show -s --format=%ct HEAD)
 
 # Keep FFmpeg at the current application pin and build both required tools.
 python3 - "$build_script_root/packages/ffmpeg.cmake" "$ffmpeg_commit" \
-    "$build_script_root/packages/nvcodec-headers.cmake" "$nvcodec_commit" <<'PY'
+    "$build_script_root/packages/nvcodec-headers.cmake" "$nvcodec_commit" \
+    "$build_script_root" "$gnu_mirror" <<'PY'
 from pathlib import Path
 import sys
 path = Path(sys.argv[1])
@@ -75,6 +77,17 @@ needle = "    GIT_REPOSITORY https://github.com/FFmpeg/nv-codec-headers.git\n"
 assert text.count(needle) == 1
 text = text.replace(needle, needle + f"    GIT_TAG {sys.argv[4]}\n")
 path.write_text(text, newline="\n")
+assert sys.argv[6] == "https://mirrors.kernel.org/gnu/"
+changed = 0
+for recipe in Path(sys.argv[5]).rglob("*.cmake"):
+    text = recipe.read_text()
+    updated = text.replace("https://ftp.gnu.org/pub/gnu/", sys.argv[6])
+    updated = updated.replace("https://ftp.gnu.org/gnu/", sys.argv[6])
+    if updated != text:
+        assert "URL_HASH SHA256=" in text or "URL_HASH SHA512=" in text
+        recipe.write_text(updated, newline="\n")
+        changed += 1
+assert changed == 5, f"Unexpected GNU mirror recipe count: {changed}"
 PY
 commands_file="$work_root/BUILD-COMMANDS.txt"
 cat > "$commands_file" <<EOF
@@ -83,6 +96,7 @@ Build revision: $build_commit
 FFmpeg revision: $ffmpeg_commit
 NVIDIA headers revision: $nvcodec_commit
 NVIDIA API version: $(read_value nvcodec.apiVersion)
+GNU archive mirror: $gnu_mirror
 Container: $(read_value environment.container)
 Patch: $patch_relative
 Patch SHA-256: $patch_hash

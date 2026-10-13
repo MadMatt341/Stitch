@@ -179,7 +179,7 @@ import sys
 
 entry = Path(sys.argv[1])
 source_root = Path(sys.argv[2])
-files = sorted(
+files = [entry] if entry.is_file() else sorted(
     (
         path
         for path in entry.rglob("*")

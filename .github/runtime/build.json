@@ -21,6 +21,7 @@
   },
   "environment": {
     "container": "ghcr.io/shinchiro/archlinux@sha256:c7dffe77b57d98b10e327dde12d3977faf4cb90aa7cb4f5eeac4e9d68d724239",
+    "gnuMirror": "https://mirrors.kernel.org/gnu/",
     "gitCommitter": {
       "name": "Stitch runtime build",
       "email": "build@stitch.invalid"

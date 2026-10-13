@@ -7,6 +7,7 @@ Each dependency keeps its license files.
 `src_packages/` contains the resolved dependency sources and their Git data.
 `mpv-winbuild-cmake/` contains the original build scripts.
 `metadata/LOCAL-CHANGES/` contains the changes to those scripts and sources.
+
 `bootstrap/` contains the CMake bootstrap inputs.
 `metadata/CONFIGURED-BUILD/` contains the target configuration.
 `metadata/BUILD-COMMANDS.txt` gives the build commands and container pin.
