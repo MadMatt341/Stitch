@@ -60,6 +60,12 @@ This includes MinGW headers, VPL, x264, x265, and unused sources downloaded by t
 FFmpeg 9.0.2, NVIDIA API 13.0, and the Windows metadata pin stay as selected.
 The build verifies each downloaded Git revision before compilation.
 
+The first all-source pin attempt failed because LuaJIT's recorded revision included a local recipe patch.
+Five records now pin verified upstream parents and retain the original recipe patches.
+The build compares compiled source trees with the original inventory after patching.
+Filtered clones of four network libraries no longer use a depth limit, which permits their specified older revisions.
+Fontconfig's official mirror had the same upstream commit and source tree when the GitLab server failed.
+
 ## Process check correction
 
 The later source [CI run](https://github.com/MadMatt341/Stitch/actions/runs/38475193025) failed two inherited-pipe timing assertions.

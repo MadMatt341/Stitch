@@ -83,7 +83,9 @@
     },
     "fontconfig": {
       "recipe": "packages/fontconfig.cmake",
-      "revision": "079bbaf61235aad016f7126b8e2896f275cb3de5"
+      "revision": "d32a1911248576d01583557efcfe4b48fb2d0a5e",
+      "patchedTree": "0e53ffa90eacbedf8743179cebcd7d4d0e3804a8",
+      "repository": "https://github.com/fontconfig/fontconfig.git"
     },
     "freetype2": {
       "recipe": "packages/freetype2.cmake",
@@ -143,7 +145,8 @@
     },
     "libbs2b": {
       "recipe": "packages/libbs2b.cmake",
-      "revision": "9b38bfee746a6a59e18902780d45b0cbfcfbb716"
+      "revision": "5ca2d59888df047f1e4b028e3a2fd5be8b5a7277",
+      "patchedTree": "757e1a033c9ff518350f89a5dbc8536f0866244d"
     },
     "libdvdcss": {
       "recipe": "packages/libdvdcss.cmake",
@@ -247,7 +250,8 @@
     },
     "luajit": {
       "recipe": "packages/luajit.cmake",
-      "revision": "1c0778ea67638ef15a8c3888c0f2621527694526"
+      "revision": "52f52587b37867ab19236eb6917001c2d6b662e7",
+      "patchedTree": "28b0b16a692cd635a4b58a796ddb9f73754d8f17"
     },
     "mingw-w64": {
       "recipe": "toolchain/mingw-w64.cmake",
@@ -263,7 +267,8 @@
     },
     "mujs": {
       "recipe": "packages/mujs.cmake",
-      "revision": "cfd23709d48b41e0a96853efc095933332edf366"
+      "revision": "2c61a7bed7e7625c03c6e82e644a711ac4471c1e",
+      "patchedTree": "510dffd641187efeb2aac9348f5ce43a66ef38c8"
     },
     "nghttp2": {
       "recipe": "packages/nghttp2.cmake",
@@ -307,7 +312,8 @@
     },
     "spirv-cross": {
       "recipe": "packages/spirv-cross.cmake",
-      "revision": "606b3505a7b74c6a637550936d37dbbae299eb3b"
+      "revision": "9c3c8e2cefdd8194b193bb8ed2fdff4d5527e382",
+      "patchedTree": "db3d180d5177036d471b533fe340ae4c7dc658fa"
     },
     "spirv-headers": {
       "recipe": "packages/spirv-headers.cmake",

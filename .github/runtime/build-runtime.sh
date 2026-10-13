@@ -106,6 +106,14 @@ for package, record in manifest["dependencySources"].items():
         text,
     )
     assert inserted == 1, package
+    if "repository" in record:
+        text, replaced = re.subn(
+            r"GIT_REPOSITORY[^\n]+", "GIT_REPOSITORY " + record["repository"], text
+        )
+        assert replaced == 1, package
+    if package in ("c-ares", "nghttp2", "nghttp3", "ngtcp2"):
+        assert "--depth=1" in text, package
+        text = text.replace("--depth=1 ", "")
     recipe.write_text(text, newline="\n")
 PY
 commands_file="$work_root/BUILD-COMMANDS.txt"
@@ -159,6 +167,24 @@ PY
 ninja -C "$build_root" gcc
 ninja -C "$build_root" ffmpeg
 [[ $(git -C "$source_root/ffmpeg" rev-parse HEAD) == "$ffmpeg_commit" ]]
+python3 - "$manifest" "$source_root" "$build_root" <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+manifest = json.loads(Path(sys.argv[1]).read_text())
+for package, record in manifest["dependencySources"].items():
+    if "patchedTree" not in record:
+        continue
+    source = Path(sys.argv[2]) / package
+    patch_stamp = Path(sys.argv[3]) / "packages" / f"{package}-prefix" / "src" / f"{package}-stamp" / f"{package}-patch"
+    if patch_stamp.exists():
+        actual = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD^{tree}"], text=True).strip()
+        assert actual == record["patchedTree"], (package, actual, record["patchedTree"])
+    else:
+        actual = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+        assert actual == record["revision"], (package, actual, record["revision"])
+PY
 
 runtime_stage="$work_root/runtime"
 mkdir "$runtime_stage"

@@ -51,6 +51,12 @@ It pins NVIDIA API 13.0 headers to permit encoding with the selected driver base
 It uses TVC's specified build-script revision and a specified upstream build container.
 The manifest also pins the remaining native Git dependencies from TVC's verified source inventory.
 
+Five source records include local patch commits.
+The manifest pins their upstream parents and expected patched trees.
+The build keeps the specified recipe patches and verifies the resulting trees for compiled sources.
+Unused sources stay at their upstream parents.
+Fontconfig uses its official GitHub mirror at the same source revision.
+
 The build makes `ffmpeg.exe` and `ffprobe.exe` for generic Windows x64 processors.
 Its feature configuration comes from those build scripts.
 It does not establish compatibility by comparison with the Gyan archive.
