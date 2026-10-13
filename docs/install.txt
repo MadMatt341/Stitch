@@ -1,0 +1,39 @@
+Stitch @VERSION@
+
+Stitch joins local video clips into one MP4 file.
+The app does not change your source files.
+This portable beta requires Windows 10 or a subsequent version, with a 64-bit processor.
+Windows can show an unsigned-app warning.
+
+1. Extract the complete ZIP into a folder.
+2. Start Stitch.exe from that folder.
+3. Drag video files into the window, or press A to select files.
+4. Drag rows to put the clips in the correct order.
+5. Click Stitch it! to select a destination and start the export.
+
+Keep the runtime and license folders beside Stitch.exe.
+The app stores its list and settings in %LOCALAPPDATA%\Stitch.
+Close the app before you move or remove its folder.
+
+Keep source preserves compatible video without new encoding.
+For other supported input, Stitch makes H.265 output automatically.
+Small, Medium, and Large select approximate file size targets.
+Original keeps each clip's frame timing.
+30 and 60 select a fixed frame rate and can repeat or remove frames.
+These changes keep playback speed.
+
+Stitch processes standard color, 10-bit, PQ HDR, and HLG HDR input.
+Converted HDR output uses one common HDR format.
+NVIDIA encoding requires compatible hardware and drivers.
+The app uses CPU encoding when NVIDIA encoding is not available.
+HEVC playback can require an additional codec in Windows players.
+
+Application source, documentation, and issues:
+https://github.com/MadMatt341/Stitch
+
+Public downloads and corresponding FFmpeg source:
+https://github.com/MadMatt341/Stitch-Releases/releases
+
+Stitch's application code uses MIT.
+The separate FFmpeg runtime and its dependencies retain their licenses.
+See LICENSE and THIRD-PARTY-NOTICES.txt for these notices and source download information.

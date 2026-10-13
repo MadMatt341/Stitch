@@ -4,6 +4,7 @@ The application name is Stitch.
 The executable name is `Stitch.exe`.
 The public source repository is `MadMatt341/Stitch`.
 The public download repository is `MadMatt341/Stitch-Releases`.
+
 The public source history starts with the first release preparation snapshot.
 The user selected this boundary to keep personal author metadata from the previous nine commits private.
 The previous development history stays in the private `MadMatt341/Stitch-Development` repository.
@@ -83,6 +84,27 @@ Do not use a failed or incomplete build for publication.
 
 ## Publication checks
 
+After runtime validation, record the selected runtime in `.github/runtime/distribution.json`.
+This manifest must have `schemaVersion: 1`, `status: verified`, and `target: win-x64`.
+It records the FFmpeg and NVIDIA header commits, binary hashes, source archive, source inventory, and public asset URLs.
+Its `validationRunUrl` identifies the successful Windows check.
+Do not create this verified record before the source audit and applicable runtime checks pass.
+
+From the project root, prepare the release files:
+
+```powershell
+./scripts/package-release.ps1 -RuntimeDirectory build/runtime-candidate -Version 0.1.0-beta
+```
+
+The script requires clean, committed source at `origin/main` and the verified runtime manifest.
+It verifies the runtime and source hashes before extraction.
+It includes only the application, selected runtime files, instructions, and license notices in the portable folder.
+It also makes source archives, a release manifest, and `SHA256SUMS.txt` under `build/releases/`.
+
+If packaging fails, correct the reported input or source problem.
+Use an empty output directory for the next attempt.
+Do not replace a verified record with hashes from an unrelated runtime.
+
 Before publication, complete these checks:
 
 1. Make sure that all selected application work is complete.
@@ -101,3 +123,4 @@ Before publication, complete these checks:
 
 Record incomplete checks and their limits before a release decision.
 Keep dated results and raw reports separate from this procedure.
+The [2026-10-14 preparation record](reviews/2026-10-14-public-release-preparation.md) gives the public source boundary and build corrections.
