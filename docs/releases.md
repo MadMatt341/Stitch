@@ -104,6 +104,22 @@ If the build fails, examine the workflow logs and its failure artifact.
 Correct the reported problem before you start another build.
 Do not use a failed or incomplete build for publication.
 
+If native compilation and source capture passed, you can check the retained candidate with the current application revision.
+The selected run must come from this repository's runtime workflow on `main`.
+Its native build job must have passed.
+
+From the project root, start the Windows validation workflow:
+Replace `<run-id>` with the completed run's number.
+
+```powershell
+gh workflow run validate-runtime.yml --repo MadMatt341/Stitch --ref main -f 'candidate-run-id=<run-id>'
+```
+
+This workflow downloads that run's retained candidate and uses `scripts/check-runtime-candidate.ps1` for validation.
+It verifies the selected source pins, archive hashes, binary hashes, required encoders, and required filters.
+It then runs the three media acceptance checks with the current application source.
+If validation fails, examine its logs and reports before you correct the reported cause.
+
 ## Publication checks
 
 After runtime validation, record the selected runtime in `.github/runtime/distribution.json`.

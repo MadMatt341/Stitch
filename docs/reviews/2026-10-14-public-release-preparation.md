@@ -96,6 +96,13 @@ All 85 selected recipes were examined for commands that change Git commits.
 OpenSSL was the only selected `git am` recipe without an expected patched tree.
 The build now requires such a tree record before compilation.
 
+The [runtime run](https://github.com/MadMatt341/Stitch/actions/runs/38500425805) completed native compilation, source capture, and the final source audit.
+Its Windows job verified tool startup, required encoders, and required filters.
+The three media checks then stopped before export because the fresh runner had no parent test-output folder.
+Each media fixture now creates that parent while it keeps the separate process-ID folder check.
+The Windows-only validation workflow can check the retained candidate with the corrected application source.
+All 24 unit tests, formatting, Clippy with all features, and the new PowerShell syntax checks passed.
+
 ## Process check correction
 
 The later source [CI run](https://github.com/MadMatt341/Stitch/actions/runs/38475193025) failed two inherited-pipe timing assertions.

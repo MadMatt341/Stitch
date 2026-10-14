@@ -67,45 +67,9 @@ jobs:
           rustup toolchain install 1.98.1 --profile minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           rustup default 1.98.1
-      - name: Prepare application and candidate runtime
+      - name: Check application, candidate runtime, and media behavior
         shell: pwsh
-        run: |
-          ./scripts/build.ps1
-          $candidate = 'build/runtime-candidate'
-          $record = Get-Content -Raw "$candidate/runtime-build-result.json" | ConvertFrom-Json
-          if ($record.schemaVersion -ne 1 -or $record.status -ne 'captured-awaiting-windows-validation' -or $record.target -ne 'win-x64') {
-            throw 'The candidate has not passed its source audit for Windows x64.'
-          }
-          foreach ($file in @($record.archive, $record.correspondingSource, $record.resolvedSources)) {
-            $path = Join-Path $candidate $file.fileName
-            if ((Get-Item $path).Length -ne $file.sizeBytes -or (Get-FileHash $path).Hash -ne $file.sha256) {
-              throw "Runtime candidate hash or size mismatch: $path"
-            }
-          }
-          Expand-Archive -LiteralPath (Join-Path $candidate $record.archive.fileName) -DestinationPath build/runtime -Force
-          foreach ($binary in $record.binaries) {
-            $path = Join-Path build/runtime $binary.fileName
-            if ((Get-Item $path).Length -ne $binary.sizeBytes -or (Get-FileHash $path).Hash -ne $binary.sha256) {
-              throw "Runtime binary hash or size mismatch: $path"
-            }
-            & $path -version
-            if ($LASTEXITCODE -ne 0) { throw "Runtime tool failed: $path" }
-          }
-          $filters = & build/runtime/ffmpeg.exe -hide_banner -filters 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect runtime filters.' }
-          foreach ($name in @('zscale', 'tonemap', 'limiter', 'interleave')) {
-            if ($filters -notmatch "\b$name\b") { throw "Required filter is missing: $name" }
-          }
-          $encoders = & build/runtime/ffmpeg.exe -hide_banner -encoders 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect runtime encoders.' }
-          foreach ($name in @('libx264', 'libx265', 'h264_nvenc', 'hevc_nvenc', 'aac')) {
-            if ($encoders -notmatch "\b$name\b") { throw "Required encoder is missing: $name" }
-          }
-      - name: Check media behavior with the candidate
-        shell: pwsh
-        run: |
-          cargo test --locked --test media_flow -- --ignored
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: ./scripts/check-runtime-candidate.ps1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

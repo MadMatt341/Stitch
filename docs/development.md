@@ -104,6 +104,7 @@ cargo test --locked --test media_flow -- --ignored
 ```
 
 The media check makes videos and `summary.json` in `build/test-output/media-flow-<process-id>/`.
+Each media check creates the parent output folder before it creates its separate process-ID folder.
 It also makes frame timing and color records in `frame-flow-<process-id>/` and `color-flow-<process-id>/`.
 It must pass the [media acceptance checks](media.md#failure-recovery-and-checks).
 For encoding changes, it must examine both CPU codecs and the available NVIDIA codecs.

@@ -1,0 +1,61 @@
+name: Validate retained FFmpeg runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate-run-id:
+        description: Completed runtime build run with a retained candidate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Identify the retained candidate
+        id: candidate
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STITCH_CANDIDATE_RUN: ${{ inputs.candidate-run-id }}
+        run: |
+          if ($env:STITCH_CANDIDATE_RUN -notmatch '^\d+$') { throw 'Invalid candidate run ID.' }
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:STITCH_CANDIDATE_RUN" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the candidate run.' }
+          if ($run.head_repository.full_name -ne $env:GITHUB_REPOSITORY -or $run.head_branch -ne 'main' -or
+              $run.path -ne '.github/workflows/build-runtime.yml' -or $run.head_sha -notmatch '^[0-9a-f]{40}$') {
+            throw 'The candidate must come from this repository runtime workflow on main.'
+          }
+          $jobs = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:STITCH_CANDIDATE_RUN/jobs?per_page=100" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the native build result.' }
+          $build = @($jobs.jobs | Where-Object name -EQ 'build')
+          if ($build.Count -ne 1 -or $build[0].conclusion -ne 'success') { throw 'The retained native build must have passed.' }
+          "commit=$($run.head_sha)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: runtime-candidate-${{ steps.candidate.outputs.commit }}
+          path: build/runtime-candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidate-run-id }}
+      - name: Prepare Rust
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          rustup default 1.98.1
+      - name: Check retained runtime and media behavior
+        shell: pwsh
+        run: ./scripts/check-runtime-candidate.ps1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: runtime-windows-checks-${{ inputs.candidate-run-id }}-${{ github.sha }}
+          path: build/test-output/
+          if-no-files-found: warn
+          retention-days: 14

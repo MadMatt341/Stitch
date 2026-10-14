@@ -347,6 +347,7 @@ fn hdr_and_ten_bit_conversion_preserve_brightness_and_timing() {
         "build/test-output/color-flow-{}",
         std::process::id()
     ));
+    fs::create_dir_all(folder.parent().unwrap()).unwrap();
     fs::create_dir(&folder).unwrap();
     let pq_path = folder.join("pq.mp4");
     let hlg_path = folder.join("hlg.mp4");
@@ -686,6 +687,7 @@ fn original_and_fixed_frame_rates_keep_timing_and_audio() {
         "build/test-output/frame-flow-{}",
         std::process::id()
     ));
+    fs::create_dir_all(folder.parent().unwrap()).unwrap();
     fs::create_dir(&folder).unwrap();
     let paths: Vec<_> = ["24.mp4", "2997.mp4", "60.mp4", "variable.mp4"]
         .into_iter()
@@ -1104,6 +1106,7 @@ fn actual_copy_conversion_cancellation_and_failure_boundaries() {
         "build/test-output/media-flow-{}",
         std::process::id()
     ));
+    fs::create_dir_all(folder.parent().unwrap()).unwrap();
     fs::create_dir(&folder).unwrap();
     let red = folder.join("α 'intro one'.mp4");
     let blue = folder.join("β second clip.mp4");
