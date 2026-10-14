@@ -43,6 +43,7 @@ jobs:
           compression-level: 0
           retention-days: 3
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ success() || (failure() && hashFiles('build/runtime-output/runtime-build-result.json') != '') }}
         with:
           name: runtime-candidate-${{ github.sha }}
           path: build/runtime-output/*
@@ -72,6 +73,9 @@ jobs:
           ./scripts/build.ps1
           $candidate = 'build/runtime-candidate'
           $record = Get-Content -Raw "$candidate/runtime-build-result.json" | ConvertFrom-Json
+          if ($record.schemaVersion -ne 1 -or $record.status -ne 'captured-awaiting-windows-validation' -or $record.target -ne 'win-x64') {
+            throw 'The candidate has not passed its source audit for Windows x64.'
+          }
           foreach ($file in @($record.archive, $record.correspondingSource, $record.resolvedSources)) {
             $path = Join-Path $candidate $file.fileName
             if ((Get-Item $path).Length -ne $file.sizeBytes -or (Get-FileHash $path).Hash -ne $file.sha256) {

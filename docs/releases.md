@@ -58,6 +58,9 @@ Unused sources stay at their upstream parents.
 
 After cleanup, source checks compare Git revisions and trees directly.
 These checks do not depend on temporary build markers.
+The build makes the complete binary and source records before this final audit.
+If this audit fails, the workflow keeps those records for examination with status `captured-awaiting-source-audit`.
+Only a passing audit permits status `captured-awaiting-windows-validation` and the Windows media check.
 
 Fontconfig uses its official GitHub mirror at the same source revision.
 The workflow downloads all specified Git sources before it verifies their revisions.

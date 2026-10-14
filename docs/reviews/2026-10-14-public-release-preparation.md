@@ -78,6 +78,12 @@ Windows media validation did not start for this failed run.
 An isolated Git check reproduced Fontconfig's expected patched tree and its unused upstream state without build markers.
 Bash syntax and all seven embedded Python blocks passed after the correction.
 
+The final source audit now follows complete binary and source capture.
+The workflow keeps these artifacts if that audit fails, with status `captured-awaiting-source-audit`.
+The active runtime run stays in use.
+Publication still requires source validation.
+Bash syntax, eight embedded Python blocks, output ordering, and the status change passed their checks.
+
 ## Process check correction
 
 The later source [CI run](https://github.com/MadMatt341/Stitch/actions/runs/38475193025) failed two inherited-pipe timing assertions.

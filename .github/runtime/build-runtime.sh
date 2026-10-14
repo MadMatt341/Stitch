@@ -185,22 +185,6 @@ PY
 ninja -C "$build_root" gcc
 ninja -C "$build_root" ffmpeg
 [[ $(git -C "$source_root/ffmpeg" rev-parse HEAD) == "$ffmpeg_commit" ]]
-python3 - "$manifest" "$source_root" <<'PY'
-import json
-from pathlib import Path
-import subprocess
-import sys
-manifest = json.loads(Path(sys.argv[1]).read_text())
-for package, record in manifest["dependencySources"].items():
-    source = Path(sys.argv[2]) / package
-    revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
-    if "patchedTree" in record and revision != record["revision"]:
-        actual = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD^{tree}"], text=True).strip()
-        assert actual == record["patchedTree"], (package, actual, record["patchedTree"])
-    else:
-        assert revision == record["revision"], (package, revision, record["revision"])
-PY
-
 runtime_stage="$work_root/runtime"
 mkdir "$runtime_stage"
 for tool in ffmpeg ffprobe; do
@@ -273,7 +257,7 @@ def record(path):
     return {"fileName": path.name, "sizeBytes": path.stat().st_size, "sha256": digest.hexdigest().upper()}
 result = {
     "schemaVersion": 1,
-    "status": "captured-awaiting-windows-validation",
+    "status": "captured-awaiting-source-audit",
     "target": "win-x64",
     "buildScriptsCommit": sys.argv[3],
     "ffmpegCommit": sys.argv[4],
@@ -286,6 +270,37 @@ result = {
 }
 (output / "runtime-build-result.json").write_text(json.dumps(result, indent=2) + "\n")
 PY
-(cd "$output_root" && sha256sum ffmpeg-stitch-9.0.2-win-x64.zip \
-    ffmpeg-stitch-source-*.tar.zst RESOLVED-SOURCES.tsv runtime-build-result.json > SHA256SUMS.txt)
+write_output_checksums() {
+    (cd "$output_root" && sha256sum ffmpeg-stitch-9.0.2-win-x64.zip \
+        ffmpeg-stitch-source-*.tar.zst RESOLVED-SOURCES.tsv runtime-build-result.json > SHA256SUMS.txt)
+}
+write_output_checksums
+
+# Retain complete binary and source output if the final source audit fails.
+python3 - "$manifest" "$source_root" <<'PY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+manifest = json.loads(Path(sys.argv[1]).read_text())
+for package, record in manifest["dependencySources"].items():
+    source = Path(sys.argv[2]) / package
+    revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    if "patchedTree" in record and revision != record["revision"]:
+        actual = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD^{tree}"], text=True).strip()
+        assert actual == record["patchedTree"], (package, actual, record["patchedTree"])
+    else:
+        assert revision == record["revision"], (package, revision, record["revision"])
+PY
+python3 - "$output_root/runtime-build-result.json" <<'PY'
+import json
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+result = json.loads(path.read_text())
+assert result["status"] == "captured-awaiting-source-audit"
+result["status"] = "captured-awaiting-windows-validation"
+path.write_text(json.dumps(result, indent=2) + "\n")
+PY
+write_output_checksums
 echo "Runtime candidate: $output_root"
