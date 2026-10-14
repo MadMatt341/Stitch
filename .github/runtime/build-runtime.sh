@@ -185,23 +185,20 @@ PY
 ninja -C "$build_root" gcc
 ninja -C "$build_root" ffmpeg
 [[ $(git -C "$source_root/ffmpeg" rev-parse HEAD) == "$ffmpeg_commit" ]]
-python3 - "$manifest" "$source_root" "$build_root" <<'PY'
+python3 - "$manifest" "$source_root" <<'PY'
 import json
 from pathlib import Path
 import subprocess
 import sys
 manifest = json.loads(Path(sys.argv[1]).read_text())
 for package, record in manifest["dependencySources"].items():
-    if "patchedTree" not in record:
-        continue
     source = Path(sys.argv[2]) / package
-    patch_stamp = Path(sys.argv[3]) / "packages" / f"{package}-prefix" / "src" / f"{package}-stamp" / f"{package}-patch"
-    if patch_stamp.exists():
+    revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    if "patchedTree" in record and revision != record["revision"]:
         actual = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD^{tree}"], text=True).strip()
         assert actual == record["patchedTree"], (package, actual, record["patchedTree"])
     else:
-        actual = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
-        assert actual == record["revision"], (package, actual, record["revision"])
+        assert revision == record["revision"], (package, revision, record["revision"])
 PY
 
 runtime_stage="$work_root/runtime"

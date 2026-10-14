@@ -55,6 +55,10 @@ Five source records include local patch commits.
 The manifest pins their upstream parents and expected patched trees.
 The build keeps the specified recipe patches and verifies the resulting trees for compiled sources.
 Unused sources stay at their upstream parents.
+
+After cleanup, source checks compare Git revisions and trees directly.
+These checks do not depend on temporary build markers.
+
 Fontconfig uses its official GitHub mirror at the same source revision.
 The workflow downloads all specified Git sources before it verifies their revisions.
 This includes compiler sources and optional packages excluded from the upstream download group.

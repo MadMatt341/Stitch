@@ -71,6 +71,13 @@ The workflow now downloads all specified Git targets before the revision checks.
 It also removes branch reset rules from fixed-commit recipes to retain the selected sources through cleanup.
 The application source check passed for `b511308b6ed10cd0eed4dc149020dac1e18d4122`.
 
+The subsequent [runtime run](https://github.com/MadMatt341/Stitch/actions/runs/38482019166) compiled and installed FFmpeg successfully.
+Its source check then expected unpatched Fontconfig because cleanup had removed the patch marker.
+The source check now compares all specified revisions and patched trees directly, without temporary build markers.
+Windows media validation did not start for this failed run.
+An isolated Git check reproduced Fontconfig's expected patched tree and its unused upstream state without build markers.
+Bash syntax and all seven embedded Python blocks passed after the correction.
+
 ## Process check correction
 
 The later source [CI run](https://github.com/MadMatt341/Stitch/actions/runs/38475193025) failed two inherited-pipe timing assertions.
