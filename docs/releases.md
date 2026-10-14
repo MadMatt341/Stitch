@@ -10,6 +10,14 @@ The user selected this boundary to keep personal author metadata from the previo
 The previous development history stays in the private `MadMatt341/Stitch-Development` repository.
 Subsequent application source changes use the public repository.
 
+## Execution policy
+
+Run builds, checks, runtime compilation, packaging, and release uploads locally.
+The user requires this project to operate without GitHub Actions.
+Actions are disabled in the active `MadMatt341/Stitch` source repository.
+GitHub remains the host for Git source and public download files.
+Historical Actions links identify completed checks for earlier releases.
+
 ## Licenses
 
 The user selected MIT for the application code and its documentation.
@@ -64,11 +72,11 @@ Unused sources stay at their upstream parents.
 After cleanup, source checks compare Git revisions and trees directly.
 These checks do not depend on temporary build markers.
 The build makes the complete binary and source records before this final audit.
-If this audit fails, the workflow keeps those records for examination with status `captured-awaiting-source-audit`.
+If this audit fails, the build keeps those records for examination with status `captured-awaiting-source-audit`.
 Only a passing audit permits status `captured-awaiting-windows-validation` and the Windows media check.
 
 Fontconfig uses its official GitHub mirror at the same source revision.
-The workflow downloads all specified Git sources before it verifies their revisions.
+The build script downloads all specified Git sources before it verifies their revisions.
 This includes compiler sources and optional packages excluded from the upstream download group.
 Fixed source commits replace the upstream branch reset rules.
 
@@ -83,7 +91,7 @@ The runtime includes unchanged license notices from the captured source trees.
 Its `LICENSES.json` file records their source paths and hashes.
 This collection includes build tools and unused source packages.
 
-The Windows job checks those records and runs the media acceptance check with the candidate.
+The local Windows check verifies those records and runs the media acceptance check with the candidate.
 A successful build remains a candidate until its source record and final application checks pass.
 
 ### Selected public runtime
@@ -101,44 +109,53 @@ Keep the matching source available with each runtime distribution.
 
 ## Prepare the runtime
 
-From the project root, start the manual GitHub workflow:
+Use the checked public runtime for a release that does not change runtime inputs.
+Keep its binary archive, matching source archive, and source inventory together under `build/runtime-candidate/`.
+The [distribution manifest](../.github/runtime/distribution.json) gives their public URLs and hashes.
+
+For a new runtime build, use a local Linux container engine.
+The engine must support the image in `.github/runtime/build.json`.
+The build also needs network access and sufficient local disk space for compilation and source capture.
+
+From the project root, run the build in that container:
 
 ```powershell
-gh workflow run build-runtime.yml --repo MadMatt341/Stitch --ref main
+$stitchRuntimeRecipe = Get-Content -Raw .github/runtime/build.json | ConvertFrom-Json
+$stitchRuntimeRoot = (Get-Location).Path
+docker run --rm --mount "type=bind,source=$stitchRuntimeRoot,target=/workspace" --workdir /workspace $stitchRuntimeRecipe.environment.container bash .github/runtime/build-runtime.sh /workspace
 ```
 
-This command starts a separate runtime build on GitHub.
-It does not publish a download or change the development runtime.
-The workflow can require up to six hours for compilation.
-Its `runtime-candidate-<revision>` artifact contains binaries and matching source together.
-Its separate Windows artifact contains the generated media-check results.
+This command runs the specified build script locally.
+It does not start GitHub Actions or publish files.
+The script requires absent `build/runtime-work/` and `build/runtime-output/` directories.
+It keeps binaries, matching source, source inventory, hashes, and the build record under `build/runtime-output/`.
+Compilation can take several hours.
 
-If the build fails, examine the workflow logs and its failure artifact.
-Correct the reported problem before you start another build.
+If the build fails, examine its local output and build logs.
+Correct the reported problem before you make another build.
 Do not use a failed or incomplete build for publication.
+Keep source audit requirements and the specified dependency pins.
 
-If native compilation and source capture passed, you can check the retained candidate with the current application revision.
-The selected run must come from this repository's runtime workflow on `main`.
-Its native build job must have passed.
-
-From the project root, start the Windows validation workflow:
-Replace `<run-id>` with the completed run's number.
+After compilation and source audit pass, check the candidate locally on Windows.
+From the project root, run:
 
 ```powershell
-gh workflow run validate-runtime.yml --repo MadMatt341/Stitch --ref main -f 'candidate-run-id=<run-id>'
+./scripts/check-runtime-candidate.ps1 -RuntimeDirectory build/runtime-output
 ```
 
-This workflow downloads that run's retained candidate and uses `scripts/check-runtime-candidate.ps1` for validation.
-It verifies the selected source pins, archive hashes, binary hashes, required encoders, and required filters.
-It then runs the three media acceptance checks with the current application source.
-If validation fails, examine its logs and reports before you correct the reported cause.
+This script verifies source pins, archive hashes, binary hashes, required encoders, and required filters.
+It then runs the three media acceptance checks locally with the current application source.
+If validation fails, examine the local logs and reports before you correct the reported cause.
+Record the checked source revision, runtime hashes, environment, results, and remaining limits in a committed check record.
 
 ## Publication checks
 
 After runtime validation, record the selected runtime in `.github/runtime/distribution.json`.
 This manifest must have `schemaVersion: 1`, `status: verified`, and `target: win-x64`.
 It records the FFmpeg and NVIDIA header commits, binary hashes, source archive, source inventory, and public asset URLs.
-Its `validationRunUrl` identifies the successful Windows check.
+Its `validationRunUrl` identifies the successful Windows check record.
+For a new local runtime build, use the public URL of its committed local check record.
+Existing Actions URLs remain historical evidence for the first beta.
 Do not create this verified record before the source audit and applicable runtime checks pass.
 
 From the project root, prepare the release files:

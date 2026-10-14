@@ -3,6 +3,18 @@
 This reference owns the source layout, build procedure, runtime provenance, and automated check commands.
 The [contributor guide](../AGENTS.md) gives the task map.
 
+## Execution policy
+
+Run application builds, runtime builds, checks, and release preparation locally.
+The user requires this project to operate without GitHub Actions.
+Keep Actions disabled in the active `MadMatt341/Stitch` source repository.
+Do not add or start GitHub Actions workflows for this project.
+Use GitHub for Git repositories and public release files.
+
+The [release reference](releases.md#prepare-the-runtime) gives the local procedure for a new runtime build.
+Earlier Actions links in dated check records describe historical results.
+They are not instructions for future execution.
+
 ## Source and output
 
 | Path | Contents |
@@ -72,7 +84,7 @@ The Git repository contains no runtime binaries or video files.
 
 ## Checks
 
-From the project root, run the unit and compile checks:
+From the project root, run the unit and compile checks locally:
 
 ```powershell
 cargo fmt --all -- --check

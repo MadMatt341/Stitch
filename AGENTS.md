@@ -15,6 +15,14 @@ Get a scope decision before you add network media, export profiles, or a differe
 The FFmpeg runtime stays separate from application source.
 Keep specified dependency versions in the manifests and build script.
 
+## Local execution policy
+
+The user requires this project to operate without GitHub Actions.
+Run builds, runtime compilation, checks, packaging, and release uploads locally.
+Do not create, enable, or dispatch GitHub Actions workflows for this project.
+Keep Actions disabled in the active `MadMatt341/Stitch` source repository.
+GitHub remains the host for Git repositories and public release files.
+
 ## Repository contract
 
 | Path | Owner |
@@ -47,7 +55,7 @@ Start with the applicable reference in this task map:
 | Metadata, thumbnails, and export compatibility | [Media selection](docs/media.md#media-selection) | `src/media.rs`, media unit tests, `tests/media_flow.rs`. |
 | Source locks, output publication, and cancellation | [Output protection](docs/media.md#output-protection) | `src/media.rs`, `src/ui.rs`, `tests/media_flow.rs`. |
 | Builds, dependency pins, and runtime packaging | [Build](docs/development.md#build) | `Cargo.toml`, `Cargo.lock`, `.cargo/config.toml`, `scripts/build.ps1`. |
-| Public source, licenses, and downloads | [Public downloads](docs/releases.md) | `LICENSE`, `.github/runtime/`, `.github/workflows/`, `scripts/check-runtime-candidate.ps1`, `scripts/package-release.ps1`. |
+| Public source, licenses, and downloads | [Public downloads](docs/releases.md) | `LICENSE`, `.github/runtime/`, `scripts/check-runtime-candidate.ps1`, `scripts/package-release.ps1`. |
 | Checks and their environment limits | [Checks](docs/development.md#checks) | `tests/media_flow.rs`, `scripts/test-ui.ps1`, source unit tests. |
 | Documentation changes or reference moves | [Documentation rules](docs/documentation.md) | `AGENTS.md`, the applicable owning reference. |
 

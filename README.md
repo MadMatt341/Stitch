@@ -102,5 +102,7 @@ From the project root, run:
 ```
 
 The script prepares `build/Stitch.exe` and its pinned FFmpeg runtime.
+Builds, checks, and release preparation run locally.
+This project does not use GitHub Actions.
 The [development reference](docs/development.md) gives build prerequisites, runtime provenance, and check commands.
 The [contributor guide](AGENTS.md) gives source owners and the task map.
