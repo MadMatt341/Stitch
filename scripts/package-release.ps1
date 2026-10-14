@@ -84,6 +84,16 @@ try {
         foreach ($name in $rootFiles) { if (-not $names.Contains($name)) { throw "Runtime file is missing: $name" } }
     } finally { $zip.Dispose() }
 
+    $rustCompilerVersion = rustc --version
+    if ($LASTEXITCODE -ne 0 -or $rustCompilerVersion -notmatch '^rustc 1\.98\.1\s') {
+        throw 'Release packaging requires the specified Rust 1.98.1 toolchain.'
+    }
+    $rustSysroot = rustc --print sysroot
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot locate the Rust standard library notice.' }
+    $rustLibraryNotice = Join-Path $rustSysroot 'share\doc\rust\COPYRIGHT-library.html'
+    if (-not (Test-Path -LiteralPath $rustLibraryNotice -PathType Leaf)) {
+        throw 'The Rust standard library copyright and license notice is missing.'
+    }
     cargo build --release --locked --target-dir build/target
     if ($LASTEXITCODE -ne 0) { throw 'The release application build failed.' }
     $metadataText = cargo metadata --locked --offline --format-version 1
@@ -116,6 +126,10 @@ try {
     $notices.Add("Matching runtime source: $($record.correspondingSource.url)")
     $notices.Add('Runtime dependency notices are in runtime/licenses. Each dependency retains its license.')
     $notices.Add('Rust dependency notices follow. Their complete license files are in licenses/Rust.')
+    $rustLibraryDirectory = Join-Path $stage 'licenses\Rust\standard-library'
+    New-Item -ItemType Directory -Force -Path $rustLibraryDirectory | Out-Null
+    Copy-Item -LiteralPath $rustLibraryNotice -Destination $rustLibraryDirectory
+    $notices.Add('Rust standard library 1.98.1: licenses/Rust/standard-library/COPYRIGHT-library.html contains its copyright and license notices.')
     foreach ($package in $metadata.packages | Where-Object { $_.name -ne 'stitch' } | Sort-Object name,version) {
         $packageRoot = Split-Path -Parent $package.manifest_path
         $noticeFiles = @(Get-ChildItem -LiteralPath $packageRoot -File | Where-Object {
@@ -150,6 +164,8 @@ try {
         applicationLicense = 'MIT'
         target = 'win-x64'
         applicationBinary = Get-StitchRecord (Join-Path $stage 'Stitch.exe')
+        rustCompiler = $rustCompilerVersion
+        rustStandardLibraryNotice = Get-StitchRecord (Join-Path $rustLibraryDirectory 'COPYRIGHT-library.html')
         runtime = $record
         assets = @($assets | ForEach-Object { Get-StitchRecord $_ })
     }

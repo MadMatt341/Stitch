@@ -30,6 +30,11 @@ It correctly refused packaging without a verified runtime manifest.
 All 24 locked Rust dependencies had package license notices, including the separate Unicode license.
 Actual release packaging and extracted-package acceptance remain pending the runtime build.
 
+The installed Rust 1.98.1 toolchain has a separate standard library copyright and license notice.
+Cargo dependency metadata does not include this file.
+The package procedure now keeps that unchanged notice and records its hash and the compiler version.
+The notice-copy check retained all bytes, and PowerShell syntax passed.
+
 The runtime scripts passed Bash and embedded Python syntax checks.
 The bootstrap patch applied to the specified upstream source revision.
 The license collector retained a nested notice and excluded Git metadata in its check.

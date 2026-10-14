@@ -24,6 +24,10 @@ Its corresponding source archive must accompany the binary download.
 The source capture scripts in `.github/runtime/` keep GPL-2.0-or-later from the TVC procedure.
 Their headers and `.github/runtime/COPYING` give these terms.
 
+The portable package also includes the Rust dependency license files.
+It keeps the unchanged standard library notice from the specified Rust toolchain in `licenses/Rust/standard-library/COPYRIGHT-library.html`.
+The release manifest records the compiler version and that notice's hash.
+
 ## Selected release scope
 
 The user selected a complete portable ZIP for Windows x64.
