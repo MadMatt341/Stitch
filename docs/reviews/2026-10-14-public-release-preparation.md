@@ -84,6 +84,13 @@ The active runtime run stays in use.
 Publication still requires source validation.
 Bash syntax, eight embedded Python blocks, output ordering, and the status change passed their checks.
 
+The [runtime run](https://github.com/MadMatt341/Stitch/actions/runs/38490670264) compiled FFmpeg but found a local OpenSSL patch in the final source check.
+Its upstream parent stays at `d8bf6cdd4849925c30e4f1911c7acb49cb34b702`.
+An isolated Git check applied the specified recipe patch and produced tree `e03bc9ea8f9205da805c4631626047faff3c3287`.
+All 85 selected recipes were examined for commands that change Git commits.
+OpenSSL was the only selected `git am` recipe without an expected patched tree.
+The build now requires such a tree record before compilation.
+
 ## Process check correction
 
 The later source [CI run](https://github.com/MadMatt341/Stitch/actions/runs/38475193025) failed two inherited-pipe timing assertions.

@@ -292,7 +292,8 @@
     },
     "openssl": {
       "recipe": "packages/openssl.cmake",
-      "revision": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702"
+      "revision": "d8bf6cdd4849925c30e4f1911c7acb49cb34b702",
+      "patchedTree": "e03bc9ea8f9205da805c4631626047faff3c3287"
     },
     "opus": {
       "recipe": "packages/opus.cmake",

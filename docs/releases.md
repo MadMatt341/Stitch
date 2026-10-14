@@ -51,9 +51,10 @@ It pins NVIDIA API 13.0 headers to permit encoding with the selected driver base
 It uses TVC's specified build-script revision and a specified upstream build container.
 The manifest also pins the remaining native Git dependencies from TVC's verified source inventory.
 
-Five source records include local patch commits.
+Six source records include local patch commits.
 The manifest pins their upstream parents and expected patched trees.
 The build keeps the specified recipe patches and verifies the resulting trees for compiled sources.
+Each selected recipe that uses `git am` must have an expected patched tree before compilation.
 Unused sources stay at their upstream parents.
 
 After cleanup, source checks compare Git revisions and trees directly.

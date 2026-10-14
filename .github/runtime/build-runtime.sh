@@ -95,6 +95,8 @@ for package, record in manifest["dependencySources"].items():
     assert re.fullmatch(r"[0-9a-f]{40}", record["revision"]), package
     recipe = Path(sys.argv[5]) / record["recipe"]
     text = recipe.read_text()
+    if "git am " in text:
+        assert re.fullmatch(r"[0-9a-f]{40}", record.get("patchedTree", "")), package
     assert text.count("GIT_REPOSITORY ") == 1, package
     text, replaced = re.subn(
         r"(?m)^\s*GIT_TAG[^\n]*\n", "", text
