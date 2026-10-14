@@ -35,6 +35,7 @@ Trimming stays in TVC.
 | Media acceptance | All five `media_flow` tests passed. |
 | Track copy | The `copy_flow` test passed. |
 | Native UI | `scripts/test-ui.ps1` passed with the 0.1.2 executable. |
+| Export details | The native F1 check passed, including the encoding cause, filename, and focus return. |
 
 The media checks included CPU and NVIDIA encoding, H.264, H.265, Main10, HDR, frame timing, and source protection.
 The track-copy check compared compressed packets and decoded audio samples.
@@ -46,7 +47,23 @@ The native reports stay in `build/test-output/native-ui-20261014-134255-912/`.
 
 ## Publication checks
 
-Package extraction, application start, media export, and public download checks remain necessary before publication.
+The preflight portable ZIP passed extraction and media export checks.
+The extracted executable had the same SHA-256 as the checked local build.
+The extracted runtime matched the verified distribution manifest.
+H.264 packet copying and H.265 conversion passed complete output decoding.
+Source files stayed unchanged.
+The ZIP included license notices and instructions without personal app state.
+The matching FFmpeg source archive stayed separate from the portable ZIP.
+
+The source archive audit passed all 85 specified dependencies and the 114-source inventory.
+The archive included the matching recipe, inventory, build commands, and captured changes.
+
+Raw package reports stay in `build/test-output/package-check-20261014-154458/`.
+The F1 report stays in `build/test-output/feedback-investigation-20261014/ui-5a97e5166697458aacd296f78bd8bbee/`.
+The source audit report stays in `build/test-output/public-release/source-audit.json`.
+
+After this record is committed and pushed, packaging must use that revision.
+The last package and public download checks remain necessary before publication.
 The [release procedure](../releases.md#publication-checks) gives these checks.
 
 ## Remaining beta limits
