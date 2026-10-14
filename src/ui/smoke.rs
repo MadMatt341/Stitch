@@ -19,7 +19,7 @@ impl App {
             self.key(b'F' as u32, true, false, false);
             let fixed_selected = self.core.borrow().settings.frame_rate == FrameRate::Fps60
                 && self.core.borrow().export_plan().unwrap().mode == ExportMode::Convert
-                && self.core.borrow().preview().starts_with("Re-encode");
+                && self.core.borrow().preview().0 == "Re-encode";
             self.key(b'F' as u32, false, false, false);
             let original_restored = self.core.borrow().settings == original_settings;
             for _ in 0..3 {
@@ -41,7 +41,20 @@ impl App {
             self.refresh();
             self.key(b'C' as u32, false, false, false);
             let source_codec_ignored = self.core.borrow().settings == original_settings;
+            let e_key_removed = !self.key(b'E' as u32, false, false, false)
+                && self.core.borrow().settings == original_settings;
+            self.key(VK_SUBTRACT as u32, false, false, false);
+            let source_clamped = self.core.borrow().settings.preset == ExportPreset::Source;
             self.key(VK_OEM_PLUS as u32, true, false, false);
+            let small = self
+                .core
+                .borrow()
+                .export_plan()
+                .unwrap()
+                .estimated_bytes
+                .unwrap();
+            let small_selected = self.core.borrow().settings.preset == ExportPreset::Small;
+            self.key(VK_ADD as u32, false, false, false);
             let medium = self
                 .core
                 .borrow()
@@ -65,31 +78,49 @@ impl App {
             let _ = capture(self.hwnd.get(), &folder.join("encoding.bmp"));
             self.key(VK_SUBTRACT as u32, false, false, false);
             self.key(VK_OEM_MINUS as u32, false, false, false);
+            let small_restored = self.core.borrow().settings.preset == ExportPreset::Small;
             self.key(VK_SUBTRACT as u32, false, false, false);
-            let small = self
-                .core
-                .borrow()
-                .export_plan()
-                .unwrap()
-                .estimated_bytes
-                .unwrap();
-            let small_clamped = self.core.borrow().settings.preset == ExportPreset::Small;
-            self.key(b'E' as u32, false, false, false);
             let source_restored = self.core.borrow().settings.preset == ExportPreset::Source;
-            self.key(b'E' as u32, false, false, false);
+            self.key(VK_ADD as u32, false, false, false);
+            self.key(VK_OEM_PLUS as u32, false, false, false);
             let medium_restored = self.core.borrow().settings.preset == ExportPreset::Medium
                 && self.core.borrow().settings.codec == VideoCodec::H265;
             let preset_controls_passed = source_codec_ignored
                 && codec_changed
                 && large_clamped
-                && small_clamped
+                && small_selected
+                && small_restored
+                && source_clamped
                 && source_restored
                 && medium_restored
+                && e_key_removed
                 && small < medium
                 && medium < large;
             self.core.borrow_mut().settings = original_settings;
             self.refresh();
-            let dc = CreateCompatibleDC(null_mut());
+            let screen = GetDC(self.hwnd.get());
+            let dc = CreateCompatibleDC(screen);
+            let bitmap = CreateCompatibleBitmap(screen, 4, 4);
+            let old_bitmap = SelectObject(dc, bitmap as _);
+            ReleaseDC(self.hwnd.get(), screen);
+            let buttons_erase_dark = [self.widgets.get().help, self.widgets.get().stitch]
+                .into_iter()
+                .chain(self.widgets.get().sizes)
+                .chain(self.widgets.get().rates)
+                .all(|control| {
+                    fill(
+                        dc,
+                        RECT {
+                            left: 0,
+                            top: 0,
+                            right: 4,
+                            bottom: 4,
+                        },
+                        0x00ffffff,
+                    );
+                    SendMessageW(control, WM_ERASEBKGND, dc as usize, 0);
+                    GetPixel(dc, 2, 2) == BG
+                });
             let original_dc = (
                 GetCurrentObject(dc, OBJ_FONT as u32),
                 GetTextColor(dc),
@@ -106,6 +137,8 @@ impl App {
                     GetTextColor(dc),
                     GetBkMode(dc),
                 );
+            SelectObject(dc, old_bitmap);
+            DeleteObject(bitmap as _);
             DeleteDC(dc);
             UpdateWindow(self.hwnd.get());
             let _ = capture(self.hwnd.get(), &folder.join("list.bmp"));
@@ -370,6 +403,7 @@ impl App {
             self.core.borrow_mut().queue.selected = last;
             self.key(VK_DELETE as u32, false, false, false);
             let report = serde_json::json!({"owner_draw_restored": owner_draw_restored,
+                "buttons_erase_dark": buttons_erase_dark,
                 "reorder_passed": okay,
                 "mouse_event_reorder_passed": mouse_order==original,
                 "click_selected": click_selected,
@@ -460,13 +494,27 @@ impl App {
             UpdateWindow(self.hwnd.get());
             thread::sleep(std::time::Duration::from_millis(75));
             let _ = capture(self.hwnd.get(), &folder.join("compact-fixed-rate.bmp"));
+            SendMessageW(self.widgets.get().sizes[0], BM_CLICK, 0, 0);
+            let quality_estimate_passed = {
+                let core = self.core.borrow();
+                let plan = core.export_plan().unwrap();
+                plan.mode == ExportMode::Convert
+                    && plan.video_bitrate.is_none()
+                    && core
+                        .preview()
+                        .1
+                        .is_some_and(|size| size.starts_with("Est. ≈"))
+            };
+            UpdateWindow(self.hwnd.get());
+            let _ = capture(self.hwnd.get(), &folder.join("compact-quality.bmp"));
+            SendMessageW(self.widgets.get().sizes[2], BM_CLICK, 0, 0);
             self.key(b'F' as u32, false, false, false);
             self.key(b'H' as u32, false, false, false);
             UpdateWindow(self.hwnd.get());
             thread::sleep(std::time::Duration::from_millis(75));
             let _ = capture(self.hwnd.get(), &folder.join("compact-help.bmp"));
             self.key(VK_ESCAPE as u32, false, false, false);
-            self.key(b'E' as u32, false, false, false);
+            SendMessageW(self.widgets.get().sizes[0], BM_CLICK, 0, 0);
             let sources: Vec<_> = {
                 let core = self.core.borrow();
                 core.queue
@@ -498,13 +546,7 @@ impl App {
                 .all(|control| IsWindowEnabled(control) == 0);
             SendMessageW(self.hwnd.get(), WM_COMMAND, SIZE_FIRST + 3, 0);
             SendMessageW(self.hwnd.get(), WM_COMMAND, RATE_FIRST + 1, 0);
-            for key in [
-                VK_ADD as u32,
-                VK_SUBTRACT as u32,
-                b'C' as u32,
-                b'E' as u32,
-                b'F' as u32,
-            ] {
+            for key in [VK_ADD as u32, VK_SUBTRACT as u32, b'C' as u32, b'F' as u32] {
                 self.key(key, false, false, false);
             }
             let locked = controls_disabled && before == self.core.borrow().settings;
@@ -513,6 +555,7 @@ impl App {
                 serde_json::from_slice(&fs::read(&report).unwrap()).unwrap();
             data["preset_busy_locked"] = locked.into();
             data["compact_size_verified"] = compact_size_verified.into();
+            data["quality_estimate_passed"] = quality_estimate_passed.into();
             data["compact_client_size"] =
                 serde_json::json!([compact_rect.right, compact_rect.bottom]);
             fs::write(report, serde_json::to_vec_pretty(&data).unwrap()).unwrap();

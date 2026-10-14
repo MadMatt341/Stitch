@@ -161,7 +161,7 @@ Do not create this verified record before the source audit and applicable runtim
 From the project root, prepare the release files:
 
 ```powershell
-./scripts/package-release.ps1 -RuntimeDirectory build/runtime-candidate -Version 0.1.0-beta
+./scripts/package-release.ps1 -RuntimeDirectory build/runtime-candidate -Version 0.1.1-beta
 ```
 
 The script requires clean, committed source at `origin/main` and the verified runtime manifest.
@@ -192,3 +192,5 @@ Before publication, complete these checks:
 Record incomplete checks and their limits before a release decision.
 Keep dated results and raw reports separate from this procedure.
 The [2026-10-14 preparation record](reviews/2026-10-14-public-release-preparation.md) gives the public source boundary and build corrections.
+
+The [0.1.1 beta check record](reviews/2026-10-14-quality-release.md) gives local results and remaining limits for that application release.

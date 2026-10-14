@@ -241,8 +241,8 @@ pub enum ExportPreset {
 impl ExportPreset {
     pub fn step(self, increase: bool) -> Self {
         match (self, increase) {
-            (Self::Source, _) => Self::Medium,
-            (Self::Small, false) => Self::Small,
+            (Self::Source, false) | (Self::Small, false) => Self::Source,
+            (Self::Source, true) => Self::Small,
             (Self::Small, true) | (Self::Large, false) => Self::Medium,
             (Self::Medium, false) => Self::Small,
             (Self::Medium, true) | (Self::Large, true) => Self::Large,
@@ -447,7 +447,7 @@ pub fn plan(infos: &[&ClipInfo], settings: ExportSettings) -> Result<ExportPlan>
     let bitrate = target_bitrate(infos, settings);
     let total: f64 = infos.iter().map(|info| info.duration).sum();
     let audio = infos.iter().any(|info| info.audio_index.is_some());
-    let bits = if copy {
+    let estimated_bytes = if copy {
         infos
             .iter()
             .try_fold(0.0, |bits, info| {
@@ -463,8 +463,11 @@ pub fn plan(infos: &[&ClipInfo], settings: ExportSettings) -> Result<ExportPlan>
                     0.0
                 }
             })
+            .map(|bits| bits / 8.0)
+    } else if let Some(bitrate) = bitrate {
+        Some(total * (bitrate as f64 + if audio { 192_000.0 } else { 0.0 }) / 8.0)
     } else {
-        bitrate.map(|bitrate| total * (bitrate as f64 + if audio { 192_000.0 } else { 0.0 }))
+        estimate_quality_bytes(infos, settings)
     };
     Ok(ExportPlan {
         mode: if copy {
@@ -474,12 +477,44 @@ pub fn plan(infos: &[&ClipInfo], settings: ExportSettings) -> Result<ExportPlan>
         },
         codec,
         video_bitrate: if copy { None } else { bitrate },
-        estimated_bytes: bits
-            .map(|bits| bits / 8.0)
-            .filter(|bytes| bytes.is_finite() && *bytes > 0.0),
+        estimated_bytes: estimated_bytes.filter(|bytes| bytes.is_finite() && *bytes > 0.0),
         // CPU encoders accept a nominal-rate hint without changing passthrough timestamps.
         nvidia_allowed: settings.frame_rate != FrameRate::Original,
     })
+}
+
+pub fn estimate_quality_bytes(infos: &[&ClipInfo], settings: ExportSettings) -> Option<f64> {
+    let first = infos.first()?;
+    let width = first.width.div_ceil(2) * 2;
+    let height = first.height.div_ceil(2) * 2;
+    let pixels = width as f64 * height as f64;
+    // Source video rates are a rough proxy for content complexity, not an encoding target.
+    let video_bits: f64 = infos
+        .iter()
+        .map(|info| {
+            let fps = settings.frame_rate.fps().unwrap_or(info.fps);
+            let bitrate = info
+                .video_bitrate
+                .filter(|rate| rate.is_finite() && *rate > 0.0)
+                .map(|rate| {
+                    rate * pixels / (info.width as f64 * info.height as f64) * fps / info.fps
+                })
+                .unwrap_or_else(|| scaled_bitrate(6_000_000.0, width, height, fps) as f64);
+            bitrate * info.duration
+        })
+        .sum();
+    let audio_bits = if infos.iter().any(|info| info.audio_index.is_some()) {
+        infos.iter().map(|info| info.duration).sum::<f64>() * 192_000.0
+    } else {
+        0.0
+    };
+    let bytes = (video_bits + audio_bits) / 8.0;
+    (bytes.is_finite() && bytes > 0.0).then_some(bytes)
+}
+
+fn scaled_bitrate(base: f64, width: u32, height: u32, fps: f64) -> u64 {
+    let scale = (width as f64 * height as f64 * fps / (1920.0 * 1080.0 * 30.0)).clamp(0.05, 16.0);
+    ((base * scale / 1000.0).round() * 1000.0) as u64
 }
 
 fn target_bitrate(infos: &[&ClipInfo], settings: ExportSettings) -> Option<u64> {
@@ -500,8 +535,7 @@ fn target_bitrate(infos: &[&ClipInfo], settings: ExportSettings) -> Option<u64> 
             .sum::<f64>()
             / duration
     });
-    let scale = (width as f64 * height as f64 * fps / (1920.0 * 1080.0 * 30.0)).clamp(0.05, 16.0);
-    Some(((base * scale / 1000.0).round() * 1000.0) as u64)
+    Some(scaled_bitrate(base, width, height, fps))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1861,7 +1895,8 @@ mod tests {
         };
         let infos: Vec<_> = sources.iter().map(|source| &source.info).collect();
         let plan = plan(&infos, settings).unwrap();
-        assert!(plan.estimated_bytes.is_none());
+        assert!(plan.estimated_bytes.is_some_and(|bytes| bytes > 0.0));
+        assert!(plan.video_bitrate.is_none());
         assert_eq!(
             plan.engine(NvidiaSupport {
                 h264: false,
@@ -2002,7 +2037,7 @@ mod tests {
     }
 
     #[test]
-    fn settings_defaults_and_size_steps_keep_source_outside_the_scale() {
+    fn settings_defaults_and_size_steps_include_keep_source() {
         assert_eq!(
             serde_json::from_str::<ExportSettings>("{}").unwrap(),
             ExportSettings::default()
@@ -2012,9 +2047,9 @@ mod tests {
                 .unwrap(),
             ExportSettings::default()
         );
-        assert_eq!(ExportPreset::Source.step(true), ExportPreset::Medium);
-        assert_eq!(ExportPreset::Source.step(false), ExportPreset::Medium);
-        assert_eq!(ExportPreset::Small.step(false), ExportPreset::Small);
+        assert_eq!(ExportPreset::Source.step(true), ExportPreset::Small);
+        assert_eq!(ExportPreset::Source.step(false), ExportPreset::Source);
+        assert_eq!(ExportPreset::Small.step(false), ExportPreset::Source);
         assert_eq!(ExportPreset::Large.step(true), ExportPreset::Large);
         assert_eq!(ExportPreset::Medium.step(true), ExportPreset::Large);
         assert_eq!(ExportPreset::Medium.step(false), ExportPreset::Small);
@@ -2090,6 +2125,88 @@ mod tests {
     }
 
     #[test]
+    fn quality_estimate_accounts_for_repeated_clips_geometry_rates_and_audio() {
+        let mut first = parse_probe(&fixture()).unwrap();
+        first.copy_key = None;
+        first.width = 1920;
+        first.height = 1080;
+        first.fps = 30.0;
+        first.video_bitrate = Some(4_000_000.0);
+        let mut second = first.clone();
+        second.width = 960;
+        second.height = 540;
+        second.fps = 60.0;
+        second.duration = 4.0;
+        second.video_bitrate = Some(1_000_000.0);
+        let settings = ExportSettings::default();
+        let quality = plan(&[&first, &second], settings).unwrap();
+        assert_eq!(quality.mode, ExportMode::Convert);
+        assert_eq!(quality.estimated_bytes, Some(3_000_000.0));
+        assert!(quality.video_bitrate.is_none());
+        assert_eq!(
+            plan(&[&first, &second, &first], settings)
+                .unwrap()
+                .estimated_bytes,
+            Some(4_000_000.0)
+        );
+        assert_eq!(
+            plan(&[&second, &first], settings).unwrap().estimated_bytes,
+            Some(750_000.0)
+        );
+        assert_eq!(
+            plan(
+                &[&first, &second],
+                ExportSettings {
+                    frame_rate: FrameRate::Fps30,
+                    ..settings
+                }
+            )
+            .unwrap()
+            .estimated_bytes,
+            Some(2_000_000.0)
+        );
+        second.audio_index = Some(1);
+        second.audio_channels = 6;
+        assert_eq!(
+            plan(&[&first, &second], settings).unwrap().estimated_bytes,
+            Some(3_144_000.0)
+        );
+    }
+
+    #[test]
+    fn quality_estimate_uses_a_reference_rate_when_video_bitrate_is_invalid() {
+        let mut info = parse_probe(&fixture()).unwrap();
+        info.copy_key = None;
+        info.width = 1919;
+        info.height = 1079;
+        info.fps = 30.0;
+        for rate in [
+            None,
+            Some(0.0),
+            Some(-1.0),
+            Some(f64::NAN),
+            Some(f64::INFINITY),
+        ] {
+            info.video_bitrate = rate;
+            let quality = plan(&[&info], ExportSettings::default()).unwrap();
+            assert_eq!(quality.estimated_bytes, Some(1_500_000.0));
+            assert!(quality.video_bitrate.is_none());
+            assert_eq!(
+                plan(
+                    &[&info],
+                    ExportSettings {
+                        frame_rate: FrameRate::Fps60,
+                        ..ExportSettings::default()
+                    }
+                )
+                .unwrap()
+                .estimated_bytes,
+                Some(3_000_000.0)
+            );
+        }
+    }
+
+    #[test]
     fn source_conversion_keeps_quality_settings_and_forced_targets_follow_the_first_clip() {
         let mut first = parse_probe(&fixture()).unwrap();
         first.width = 1919;
@@ -2122,7 +2239,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(automatic.codec, VideoCodec::H265);
-        assert!(automatic.estimated_bytes.is_none());
+        assert!(automatic.estimated_bytes.is_some_and(|bytes| bytes > 0.0));
+        assert!(automatic.video_bitrate.is_none());
         assert_eq!(
             automatic.engine(NvidiaSupport {
                 h264: true,

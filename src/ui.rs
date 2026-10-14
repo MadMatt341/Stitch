@@ -180,9 +180,9 @@ impl Core {
         media::plan(&self.infos()?, self.settings).ok()
     }
 
-    fn preview(&self) -> String {
+    fn preview(&self) -> (String, Option<String>) {
         let Some(infos) = self.infos() else {
-            return if self
+            let detail = if self
                 .clips
                 .values()
                 .any(|clip| matches!(clip.info, Some(Err(_))))
@@ -192,13 +192,14 @@ impl Core {
                 "Reading videos…"
             }
             .into();
+            return (detail, None);
         };
         if infos.is_empty() {
-            return "Add videos for an estimate".into();
+            return ("Add videos for an estimate".into(), None);
         }
         let mut plan = match media::plan(&infos, self.settings) {
             Ok(plan) => plan,
-            Err(error) => return error,
+            Err(error) => return (error, None),
         };
         if self
             .busy
@@ -207,14 +208,14 @@ impl Core {
             && self.settings.preset == ExportPreset::Source
         {
             plan.mode = ExportMode::Convert;
-            plan.estimated_bytes = None;
+            plan.estimated_bytes = media::estimate_quality_bytes(&infos, self.settings);
         }
         let size = plan
             .estimated_bytes
             .map(|bytes| {
                 format!(
                     "{} ≈ {}",
-                    if plan.mode == ExportMode::Copy {
+                    if self.settings.preset == ExportPreset::Source {
                         "Est."
                     } else {
                         "Target"
@@ -222,13 +223,7 @@ impl Core {
                     file_size(bytes)
                 )
             })
-            .unwrap_or_else(|| {
-                if plan.mode == ExportMode::Copy {
-                    "Size unavailable".into()
-                } else {
-                    "Size varies".into()
-                }
-            });
+            .unwrap_or_else(|| "Size unavailable".into());
         let action = if plan.mode == ExportMode::Copy {
             "Copy"
         } else {
@@ -238,7 +233,7 @@ impl Core {
                 _ => "Re-encode",
             }
         };
-        format!("{action} · {size}")
+        (action.into(), Some(size))
     }
 
     fn label(&self, index: usize) -> String {
@@ -1178,7 +1173,7 @@ impl App {
             return false;
         }
         if !control
-            && (matches!(key, 0x45 | 0x46)
+            && (key == b'F' as u32
                 || key == VK_ADD as u32
                 || key == VK_SUBTRACT as u32
                 || key == VK_OEM_PLUS as u32
@@ -1186,13 +1181,7 @@ impl App {
         {
             let mut core = self.core.borrow_mut();
             let before = core.settings;
-            if key == b'E' as u32 {
-                core.settings.preset = if core.settings.preset == ExportPreset::Source {
-                    ExportPreset::Medium
-                } else {
-                    ExportPreset::Source
-                };
-            } else if key == b'F' as u32 {
+            if key == b'F' as u32 {
                 core.settings.frame_rate = core.settings.frame_rate.step(!shift);
             } else {
                 core.settings.preset = core
@@ -1330,8 +1319,7 @@ impl App {
                 ("Shift + ↑ / ↓", "Move the selected clip"),
                 ("Ctrl + S", "Choose destination and stitch"),
                 ("Delete", "Remove the selected clip"),
-                ("+ / −", "Small / Medium / Large target"),
-                ("E", "Keep source / Medium"),
+                ("+ / −", "Keep source / Small / Medium / Large"),
                 ("F / Shift+F", "Original / 30 / 60 fps"),
                 ("H / Esc", "Dismiss help"),
                 ("Ctrl + Q / Alt + F4", "Quit Stitch"),
@@ -1433,7 +1421,8 @@ impl App {
                         .map(|info| info.duration)
                 })
                 .sum();
-            let count = format!(
+            let (detail, size) = core.preview();
+            let mut count = format!(
                 "{} {} · Total {}",
                 core.queue.entries.len(),
                 if core.queue.entries.len() == 1 {
@@ -1443,6 +1432,16 @@ impl App {
                 },
                 total.map(time).unwrap_or_else(|| "—".into())
             );
+            if let Some(size) = size {
+                count.push_str(&format!(" · {size}"));
+            }
+            let summary_right = rect.right - p(18);
+            let old_font = SelectObject(dc, self.small.get() as _);
+            let label = wide(&count);
+            let mut extent: SIZE = std::mem::zeroed();
+            GetTextExtentPoint32W(dc, label.as_ptr(), label.len() as i32 - 1, &mut extent);
+            SelectObject(dc, old_font);
+            let detail_left = (p(18) + extent.cx + p(16)).min(summary_right);
             text(
                 dc,
                 self.small.get(),
@@ -1450,25 +1449,27 @@ impl App {
                 RECT {
                     left: p(18),
                     top: rect.bottom - p(164),
-                    right: rect.right / 2,
+                    right: summary_right,
                     bottom: rect.bottom - p(140),
                 },
                 TEXT,
                 DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
             );
-            text(
-                dc,
-                self.small.get(),
-                &core.preview(),
-                RECT {
-                    left: rect.right / 2 + p(6),
-                    top: rect.bottom - p(164),
-                    right: rect.right - p(18),
-                    bottom: rect.bottom - p(140),
-                },
-                MUTED,
-                DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
-            );
+            if detail_left < summary_right {
+                text(
+                    dc,
+                    self.small.get(),
+                    &detail,
+                    RECT {
+                        left: detail_left,
+                        top: rect.bottom - p(164),
+                        right: rect.right - p(18),
+                        bottom: rect.bottom - p(140),
+                    },
+                    MUTED,
+                    DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
+                );
+            }
             for (content, bottom) in [("File size", 126), ("Frame rate", 92)] {
                 text(
                     dc,
@@ -1976,7 +1977,7 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPAR
             }
             1
         }
-        WM_CTLCOLORLISTBOX => {
+        WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN => {
             SetTextColor(wp as HDC, TEXT);
             SetBkColor(wp as HDC, BG);
             state.brush as isize
@@ -2486,9 +2487,9 @@ mod tests {
     }
 
     #[test]
-    fn copied_size_disappears_when_worker_reports_quality_conversion() {
+    fn quality_conversion_keeps_an_estimate_when_copy_falls_back() {
         let mut core = ready_core();
-        assert!(core.preview().contains("Est. ≈ 4 MB"));
+        assert_eq!(core.preview(), ("Copy".into(), Some("Est. ≈ 4 MB".into())));
         core.busy = Some(Run {
             canceled: Arc::new(AtomicBool::new(false)),
             percent: 0.0,
@@ -2497,8 +2498,7 @@ mod tests {
             destination: "out.mp4".into(),
         });
         let summary = core.preview();
-        assert!(summary.contains("Re-encode · Size varies"));
-        assert!(!summary.contains("Est."));
+        assert_eq!(summary, ("Re-encode".into(), Some("Est. ≈ 4 MB".into())));
     }
 
     #[test]
@@ -2509,7 +2509,7 @@ mod tests {
             codec: VideoCodec::H265,
             frame_rate: FrameRate::Fps30,
         };
-        assert!(core.preview().contains("Target ≈"));
+        assert!(core.preview().1.unwrap().starts_with("Target ≈"));
         core.busy = Some(Run {
             canceled: Arc::new(AtomicBool::new(false)),
             percent: 0.0,
@@ -2517,8 +2517,9 @@ mod tests {
             engine: Some(EncodeEngine::CpuFallback),
             destination: "out.mp4".into(),
         });
-        assert!(core.preview().contains("CPU retry"));
-        assert!(core.preview().contains("Target ≈"));
+        let (detail, size) = core.preview();
+        assert_eq!(detail, "CPU retry");
+        assert!(size.unwrap().starts_with("Target ≈"));
         let legacy: Saved = serde_json::from_str(r#"{"paths":["one.mp4"],"selected":0}"#).unwrap();
         assert_eq!(legacy.export_settings, ExportSettings::default());
     }
@@ -2526,9 +2527,9 @@ mod tests {
     #[test]
     fn simplified_settings_migrate_format_and_old_fixed_rates() {
         let mut core = ready_core();
-        assert!(core.preview().starts_with("Copy"));
+        assert_eq!(core.preview().0, "Copy");
         core.settings.frame_rate = FrameRate::Fps60;
-        assert!(core.preview().starts_with("Re-encode"));
+        assert_eq!(core.preview().0, "Re-encode");
         let legacy = simplified_settings(ExportSettings {
             codec: VideoCodec::H264,
             frame_rate: FrameRate::Fps23976,
@@ -2555,6 +2556,9 @@ mod tests {
             plan.engine(core.nvidia.unwrap()),
             Some(EncodeEngine::Nvidia)
         );
-        assert_eq!(core.preview(), "Re-encode · Size varies");
+        assert_eq!(
+            core.preview(),
+            ("Re-encode".into(), Some("Est. ≈ 8 MB".into()))
+        );
     }
 }

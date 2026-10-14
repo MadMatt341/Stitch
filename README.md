@@ -8,7 +8,7 @@ The application source is public under the [MIT license](LICENSE).
 The FFmpeg runtime keeps its separate licenses.
 The [release reference](docs/releases.md) gives download contents and source requirements.
 
-Download the [portable Windows x64 beta](https://github.com/MadMatt341/Stitch-Releases/releases/tag/v0.1.0-beta).
+Download the [portable Windows x64 beta](https://github.com/MadMatt341/Stitch-Releases/releases/tag/v0.1.1-beta).
 Extract the complete ZIP before you start `Stitch.exe`.
 The matching FFmpeg source is a separate download on the same release page.
 
@@ -26,9 +26,8 @@ Keep its `runtime` folder beside the executable.
 | Shift+Up or Shift+Down | Move the selected video clip one position. |
 | Drag a row | Move the row with the mouse and change the order on release. |
 | Delete or × | Remove a video clip from the list. |
-| E | Switch between source mode and encoding presets. |
-| + or = | Increase the file size target. In source mode, select Medium. |
-| - | Decrease the file size target. In source mode, select Medium. |
+| + or = | Select the next file size choice. |
+| - | Select the previous file size choice. |
 | F or Shift+F | Select the next or previous frame rate. |
 | Ctrl+S | Open the save dialog. During export, cancel the export. |
 | H | Show or hide Help. |
@@ -40,9 +39,12 @@ Click Save to start the export.
 During the export, click Cancel to stop it.
 
 The numpad + and - keys also change the file size target.
+The size keys use this sequence: Keep source, Small, Medium, and Large.
 Click Keep source, Small, Medium, or Large to select the file size behavior.
 Click Original, 30, or 60 to select the frame rate.
+
 The divider and summary above these settings show the clip count, total length, and approximate output size.
+The output size is adjacent to the total length.
 During export, the app disables the setting buttons and prevents setting changes.
 
 The app stores the list, selection, export settings, output folder, and window position in `%LOCALAPPDATA%/Stitch/state.json`.
@@ -63,7 +65,6 @@ For other supported clips, it converts to H.265 and AAC with automatic color han
 The default conversion uses quality encoding without a fixed file size target.
 
 Small, Medium, and Large are file size targets.
-In source mode, E selects Medium.
 With a fixed frame rate, these presets use NVIDIA encoding when available and CPU encoding otherwise.
 If NVIDIA encoding fails, the app can retry once with the CPU.
 The retry keeps the selected codec and target.
@@ -73,7 +74,10 @@ Short clips or simple picture content can give much smaller files than the targe
 The app selects H.265 (HEVC) in MP4 for new encoding.
 You do not need to select a format.
 On Windows, HEVC playback can require a [codec extension](https://support.microsoft.com/en-us/windows/apps/windowsmediaplayer/troubleshoot-windows-media-player-errors).
-The output summary shows `Size varies` for the default quality conversion.
+
+The output summary shows an approximate file size for quality conversion.
+This estimate uses source video bitrates, output dimensions, frame rate, and audio.
+If a video bitrate is missing, the estimate uses a reference rate.
 
 Original keeps each clip's original frame timing by default.
 Mixed rates produce variable frame rate output when conversion is necessary.

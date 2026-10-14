@@ -184,7 +184,7 @@ try {
     Complete-StitchCheck $process 'native-ui'
     $report = Get-Content -Raw -LiteralPath (Join-Path $stitchCase 'interaction.json') | ConvertFrom-Json
     if (-not $report.reorder_passed -or -not $report.mouse_event_reorder_passed -or $report.drop_added_count -ne 2 -or -not $report.native_export_passed -or $report.thumbnail_count -ne 2) { throw 'The native UI behavior check failed.' }
-    foreach ($check in @('click_selected','click_kept_order','drag_thumbnail_moved','drag_repaint_stable','drag_cancel_passed','capture_cancel_passed','picker_cancel_focus','picker_empty_cancel_focus','empty_click_ignored','add_button_removed','cancel_action_requested','owner_draw_restored','preset_controls_passed','frame_rate_controls_passed','setting_buttons_passed','preset_busy_locked','compact_size_verified')) {
+    foreach ($check in @('click_selected','click_kept_order','drag_thumbnail_moved','drag_repaint_stable','drag_cancel_passed','capture_cancel_passed','picker_cancel_focus','picker_empty_cancel_focus','empty_click_ignored','add_button_removed','cancel_action_requested','owner_draw_restored','buttons_erase_dark','preset_controls_passed','quality_estimate_passed','frame_rate_controls_passed','setting_buttons_passed','preset_busy_locked','compact_size_verified')) {
         if (-not $report.$check) { throw "The native UI check failed: $check" }
     }
     if ($null -ne $report.picker_foreground_restored -and -not $report.picker_foreground_restored) { throw 'Cancel lost foreground activation after the picker opened from the foreground app.' }
@@ -204,7 +204,7 @@ try {
     $ui = Wait-StitchWindow $process 2
     Click-StitchRow $ui.List 1
     if ([StitchUiCheck.Native]::Send($ui.List, 0x188) -ne 1) { throw 'The second row was not selected before saving.' }
-    foreach ($key in @(0x6B, 0x6B, 0x46)) { [StitchUiCheck.Native]::Key($ui.Window, $key) }
+    foreach ($key in @(0x6B, 0x6B, 0x6B, 0x46)) { [StitchUiCheck.Native]::Key($ui.Window, $key) }
     $settingsDeadline = [DateTime]::UtcNow.AddSeconds(5)
     $settingsReady = $false
     do {

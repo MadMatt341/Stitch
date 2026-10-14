@@ -137,7 +137,8 @@ It also verifies native Cancel, Ctrl+S cancellation, and GDI drawing context res
 It waits for the state save timer and verifies immediate state publication on close.
 It also locks the previous state file and verifies a state save after lock removal.
 
-Export control checks must examine the setting buttons, E, the size keys, and locked controls during export.
+Export control checks must examine the setting buttons, all four size choices, and locked controls during export.
+Native checks must examine the quality size estimate and the dark background during button erasure.
 Saved state checks must examine preset restoration, automatic H.265 selection, and defaults for older state files.
 Frame rate checks must examine Original, 30, 60, F, Shift+F, saved selection, and previous selection migration.
 Native checks must permit export for mixed eight-bit, standard color 10-bit, and PQ HDR input with each size and rate choice.

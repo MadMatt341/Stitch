@@ -239,8 +239,17 @@ If all clips have no audio track, the calculation has no audio contribution.
 These values are approximate.
 The output file size can be smaller or larger than the target.
 Short clips or simple picture content can give much smaller files.
-The default CRF conversion has no file size estimate.
-If source copying changes to conversion, the copy estimate no longer applies.
+The [x265 quality reference](https://x265.readthedocs.io/en/master/cli.html#cmdoption-crf) describes how picture content changes CRF output size.
+
+For quality conversion, the estimate uses each selected source video bitrate as a reference.
+It adjusts each bitrate for the output pixel count and frame rate.
+If a bitrate is missing or invalid, it uses the Medium reference rate for that clip.
+This reference rate uses the output dimensions and the clip's output frame rate.
+The calculation includes 192 kbps for the full duration when any clip contains audio.
+The estimate does not set the encoding bitrate.
+
+Quality encoding can differ from its estimate because picture content, source compression, and encoder choice change its bitrate.
+If source copying changes to conversion, the summary uses the quality estimate.
 The [UI reference](ui.md#output-summary-and-export-controls) gives the file size labels and controls.
 
 ## Output protection

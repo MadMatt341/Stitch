@@ -51,6 +51,8 @@ Cancel and shell actions release state borrows before native calls that can send
 Thus, the Cancel action can receive `WM_CANCELMODE` without a second state borrow failure.
 Button drawing restores the supplied GDI drawing context before it returns.
 The app replaces control fonts before it deletes the previous fonts.
+The app supplies a dark background brush when Windows erases a button background.
+Thus, the bottom controls keep their dark background when Help opens or closes.
 
 The window has no standard title bar.
 Its top area moves the window, and its edges let you resize it.
@@ -72,6 +74,9 @@ It stays above the settings when the list scrolls or changes.
 The app counts repeated list entries separately.
 Until all clip lengths are available, the total length shows a dash.
 
+The app shows the file size indication adjacent to the total length.
+It shows the export mode or media error on the right side of the summary.
+
 The File size row has four buttons: Keep source, Small, Medium, and Large.
 Keep source is the default selection and is separate from the three size targets.
 If the clips permit copying, Keep source copies the source video packets.
@@ -90,20 +95,19 @@ The app selects the encoding format and available encoder.
 It has no format control or C shortcut.
 The [frame rate contract](media.md#frame-rates) owns timing preservation and encoder conditions.
 
-E switches between Keep source and Medium.
-The + or = key selects one larger target, and the - key selects one smaller target.
+The + or = key selects the next file size choice, and the - key selects the previous choice.
 The numpad + and - keys have the same effects.
-With Keep source selected, either direction selects Medium.
-The app keeps the selection at the Small and Large limits.
+The sequence is Keep source, Small, Medium, and Large.
+The app keeps the selection at the Keep source and Large limits.
 
 F selects the next frame rate, and Shift+F selects the previous rate.
 The three rate choices repeat after the last choice.
 These keyboard controls have the same export effects as the buttons.
 
-Copy mode uses the `Est. ≈` label.
+Copy mode and quality conversion use the `Est. ≈` label.
 Encoding presets use the `Target ≈` label.
-Quality conversion shows `Size varies`.
 A missing video bitrate prevents the copy estimate.
+Quality conversion uses a reference rate when a video bitrate is missing.
 
 The indication uses approximate decimal KB, MB, or GB values.
 One KB is 1,000 bytes, one MB is 1,000,000 bytes, and one GB is 1,000,000,000 bytes.
@@ -193,17 +197,17 @@ Use typical local videos for these checks:
 9. Drop video files on the list. Make sure that the app adds each file.
 10. Resize the window. Make sure that you can use the list and controls.
 11. Close the app. Open it again with the same state folder. Make sure that the list returns.
-12. Add clips with matching video settings. Make sure that the summary shows `Copy source video`.
-13. Press E. Make sure that Medium and an approximate target file size appear.
-14. Press -. Make sure that Small appears.
-15. Press - again. Make sure that Small stays selected.
+12. Add clips with matching video settings. Make sure that the summary shows `Copy`.
+13. Press +. Make sure that Small and an approximate target file size appear.
+14. Press +. Make sure that Medium appears.
+15. Press -. Make sure that Small appears.
 16. Press + two times. Make sure that Large appears.
 17. Press + again. Make sure that Large stays selected.
 18. Use = and the numpad + and - keys. Make sure that they change the targets correctly.
 19. Click each file size choice. Make sure that its selection indication changes.
-20. Press E. Make sure that the copy indication returns.
-21. Press - in source mode. Make sure that Medium appears.
-22. Start an export. Make sure that E, F, +, and - cannot change its settings.
+20. Click Large. Press - three times. Make sure that Keep source and the copy indication return.
+21. Press - again. Make sure that Keep source stays selected.
+22. Start an export. Make sure that F, +, and - cannot change its settings.
     Make sure that the setting buttons are disabled.
 23. Examine the encoder indication during export. Examine the result status after completion.
 24. Select a size preset and a fixed rate. Close the app. Open it again. Make sure that the selections return.
@@ -212,8 +216,18 @@ Use typical local videos for these checks:
     Examine the output color and the source thumbnails.
 26. Press F and Shift+F. Make sure that they select the next and previous rates.
 27. Click Original, 30, and 60. Make sure that the selected rate indication changes.
-28. Examine the divider and summary above the settings. Make sure that the clip count and total length are correct.
-29. Return to source mode with a fixed rate. Make sure that the summary shows conversion.
+28. Examine the divider and summary above the settings.
+    Make sure that the clip count and total length are correct.
+    Make sure that the file size indication is adjacent to the total length.
+29. Return to source mode with a fixed rate.
+    Make sure that the summary shows conversion and an approximate file size.
+30. Press H to open Help.
+    Make sure that the bottom controls keep their dark background.
+    Press H to close Help.
+    Make sure that the bottom controls keep their dark background.
+    Press H to open Help again.
+    Press Esc to close Help.
+    Make sure that the bottom controls keep their dark background.
 
 If a check fails, record the build, Windows version, input method, and screen result.
 Keep automated reports and observed acceptance results separate.

@@ -1181,6 +1181,17 @@ fn actual_copy_conversion_cancellation_and_failure_boundaries() {
         "Copied audio length is wrong"
     );
     let mixed = vec![source(&runtime, &red), source(&runtime, &silent)];
+    let quality = media::plan(
+        &mixed.iter().map(|source| &source.info).collect::<Vec<_>>(),
+        ExportSettings::default(),
+    )
+    .unwrap();
+    assert!(
+        quality
+            .estimated_bytes
+            .is_some_and(|bytes| bytes.is_finite() && bytes > 0.0)
+    );
+    assert!(quality.video_bitrate.is_none());
     let converted = folder.join("converted.mp4");
     assert_eq!(
         media::export(
@@ -1655,6 +1666,7 @@ fn actual_copy_conversion_cancellation_and_failure_boundaries() {
             "cpu_h264_presets": true,
             "cpu_hevc_presets": true,
             "preset_estimates_increase": true,
+            "quality_estimate_available": true,
             "cpu_ten_bit_conversion": true,
             "forced_precanceled_output_preserved": true,
             "nvidia_h264_presets": nvidia.h264.then_some(true),
