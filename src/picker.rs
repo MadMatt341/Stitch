@@ -50,7 +50,7 @@ pub unsafe fn open(
     dialog.SetFileTypes(&[
         COMDLG_FILTERSPEC {
             pszName: w!("Video files"),
-            pszSpec: w!("*.mp4;*.mkv;*.mov;*.m4v;*.webm;*.avi;*.ts;*.mts;*.m2ts;*.wmv"),
+            pszSpec: w!("*.mp4;*.mkv;*.mov;*.m4v;*.webm;*.avi;*.ts;*.mts;*.m2ts;*.wmv;*.asf;*.mpg;*.mpeg;*.vob;*.flv;*.3gp;*.3g2;*.ogv;*.ogg;*.mxf"),
         },
         COMDLG_FILTERSPEC {
             pszName: w!("All files"),

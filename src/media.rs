@@ -34,6 +34,9 @@ pub type Result<T> = std::result::Result<T, String>;
 pub const THUMB_WIDTH: i32 = 96;
 pub const THUMB_HEIGHT: i32 = 54;
 
+pub mod copy;
+pub use copy::{AudioMode, CopyDetails, CopyIssue, EncodingReason};
+
 #[derive(Clone, Debug)]
 pub struct Runtime {
     pub ffmpeg: PathBuf,
@@ -76,6 +79,8 @@ pub struct ClipInfo {
     #[serde(default)]
     pub color: VideoColor,
     pub copy_key: Option<String>,
+    #[serde(default)]
+    pub copy_details: CopyDetails,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -407,6 +412,9 @@ impl EncodeEngine {
 #[derive(Clone, Copy, Debug)]
 pub struct ExportPlan {
     pub mode: ExportMode,
+    pub audio_mode: AudioMode,
+    pub video_reason: Option<EncodingReason>,
+    pub audio_reason: Option<EncodingReason>,
     pub codec: VideoCodec,
     pub video_bitrate: Option<u64>,
     pub estimated_bytes: Option<f64>,
@@ -427,9 +435,29 @@ impl ExportPlan {
 
 pub fn plan(infos: &[&ClipInfo], settings: ExportSettings) -> Result<ExportPlan> {
     let first = infos.first().ok_or("Add a video before stitching.")?;
-    let copy = settings.preset == ExportPreset::Source
-        && settings.frame_rate == FrameRate::Original
-        && copy_compatible(infos.iter().copied());
+    let video_reason = if settings.preset != ExportPreset::Source {
+        Some(EncodingReason {
+            clip: 0,
+            issue: CopyIssue::SizePreset,
+        })
+    } else if settings.frame_rate != FrameRate::Original {
+        Some(EncodingReason {
+            clip: 0,
+            issue: CopyIssue::FrameRate,
+        })
+    } else {
+        copy::video_reason(infos)
+    };
+    let copy = video_reason.is_none();
+    let has_audio = infos.iter().any(|info| info.audio_index.is_some());
+    let audio_reason = has_audio.then(|| copy::audio_reason(infos)).flatten();
+    let audio_mode = if !has_audio {
+        AudioMode::None
+    } else if audio_reason.is_none() {
+        AudioMode::Copy
+    } else {
+        AudioMode::Encode
+    };
     if !copy {
         for info in infos {
             check_conversion_color(info)?;
@@ -445,36 +473,25 @@ pub fn plan(infos: &[&ClipInfo], settings: ExportSettings) -> Result<ExportPlan>
         settings.codec
     };
     let bitrate = target_bitrate(infos, settings);
-    let total: f64 = infos.iter().map(|info| info.duration).sum();
-    let audio = infos.iter().any(|info| info.audio_index.is_some());
-    let estimated_bytes = if copy {
-        infos
-            .iter()
-            .try_fold(0.0, |bits, info| {
-                let rate = info
-                    .video_bitrate
-                    .filter(|rate| rate.is_finite() && *rate > 0.0)?;
-                Some(bits + rate * info.duration)
-            })
-            .map(|bits| {
-                bits + if audio {
-                    total * (first.audio_channels.clamp(1, 8) * 96_000) as f64
-                } else {
-                    0.0
-                }
-            })
-            .map(|bits| bits / 8.0)
-    } else if let Some(bitrate) = bitrate {
-        Some(total * (bitrate as f64 + if audio { 192_000.0 } else { 0.0 }) / 8.0)
-    } else {
-        estimate_quality_bytes(infos, settings)
-    };
+    let estimated_bytes = estimate_export_bytes(
+        infos,
+        settings,
+        if copy {
+            ExportMode::Copy
+        } else {
+            ExportMode::Convert
+        },
+        audio_mode,
+    );
     Ok(ExportPlan {
         mode: if copy {
             ExportMode::Copy
         } else {
             ExportMode::Convert
         },
+        audio_mode,
+        video_reason,
+        audio_reason,
         codec,
         video_bitrate: if copy { None } else { bitrate },
         estimated_bytes: estimated_bytes.filter(|bytes| bytes.is_finite() && *bytes > 0.0),
@@ -512,6 +529,43 @@ pub fn estimate_quality_bytes(infos: &[&ClipInfo], settings: ExportSettings) -> 
     (bytes.is_finite() && bytes > 0.0).then_some(bytes)
 }
 
+pub fn estimate_export_bytes(
+    infos: &[&ClipInfo],
+    settings: ExportSettings,
+    mode: ExportMode,
+    audio_mode: AudioMode,
+) -> Option<f64> {
+    let first = *infos.first()?;
+    let total: f64 = infos.iter().map(|info| info.duration).sum();
+    let video = if mode == ExportMode::Copy {
+        infos.iter().try_fold(0.0, |bytes, info| {
+            Some(bytes + info.video_bitrate? * info.duration / 8.0)
+        })?
+    } else if let Some(bitrate) = target_bitrate(infos, settings) {
+        total * bitrate as f64 / 8.0
+    } else {
+        estimate_quality_bytes(infos, settings)?
+            - if infos.iter().any(|info| info.audio_index.is_some()) {
+                total * 192_000.0 / 8.0
+            } else {
+                0.0
+            }
+    };
+    let audio = match audio_mode {
+        AudioMode::None => 0.0,
+        AudioMode::Copy => infos.iter().try_fold(0.0, |bytes, info| {
+            Some(bytes + info.copy_details.audio_bitrate? * info.duration / 8.0)
+        })?,
+        AudioMode::Encode => {
+            total
+                * (copy::audio_encoding_format(first, mode == ExportMode::Convert).2 * 1000) as f64
+                / 8.0
+        }
+    };
+    let bytes = video + audio;
+    (bytes.is_finite() && bytes > 0.0).then_some(bytes)
+}
+
 fn scaled_bitrate(base: f64, width: u32, height: u32, fps: f64) -> u64 {
     let scale = (width as f64 * height as f64 * fps / (1920.0 * 1080.0 * 30.0)).clamp(0.05, 16.0);
     ((base * scale / 1000.0).round() * 1000.0) as u64
@@ -542,6 +596,8 @@ fn target_bitrate(infos: &[&ClipInfo], settings: ExportSettings) -> Option<u64> 
 pub struct Progress {
     pub percent: f64,
     pub mode: ExportMode,
+    pub audio_mode: AudioMode,
+    pub reason: Option<EncodingReason>,
     pub engine: Option<EncodeEngine>,
 }
 
@@ -555,6 +611,35 @@ fn rate(text: &str) -> Option<f64> {
     let (a, b) = text.split_once('/')?;
     let result = a.parse::<f64>().ok()? / b.parse::<f64>().ok()?;
     (result.is_finite() && result > 0.0 && result <= 240.0).then_some(result)
+}
+
+fn stream_duration(stream: &Value) -> Option<f64> {
+    if !stream["duration"].is_null() {
+        return number(&stream["duration"]).filter(|duration| *duration > 0.0);
+    }
+    // FFmpeg's Matroska DURATION tag contains the track's end timestamp.
+    let text = stream["tags"]["DURATION"].as_str()?;
+    let mut parts = text.split(':');
+    let hours = parts.next()?;
+    let minutes = parts.next()?;
+    let seconds = parts.next()?;
+    if parts.next().is_some()
+        || hours.is_empty()
+        || !hours.bytes().all(|byte| byte.is_ascii_digit())
+        || minutes.len() != 2
+        || !minutes.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    let hours = hours.parse::<u64>().ok()?;
+    let minutes = minutes.parse::<u8>().ok()?;
+    let seconds = seconds.parse::<f64>().ok()?;
+    if minutes >= 60 || !seconds.is_finite() || !(0.0..60.0).contains(&seconds) {
+        return None;
+    }
+    let duration = hours as f64 * 3600.0 + minutes as f64 * 60.0 + seconds
+        - number(&stream["start_time"]).unwrap_or(0.0);
+    (duration.is_finite() && duration > 0.0).then_some(duration)
 }
 
 fn probe_color(video: &Value) -> VideoColor {
@@ -687,7 +772,7 @@ pub fn parse_probe(root: &Value) -> Result<ClipInfo> {
         .filter(|s| s["codec_type"] == "audio")
         .find(|s| s["disposition"]["default"] == 1)
         .or_else(|| streams.iter().find(|s| s["codec_type"] == "audio"));
-    let duration = number(&video["duration"])
+    let duration = stream_duration(video)
         .or_else(|| number(&root["format"]["duration"]))
         .filter(|n| *n > 0.0)
         .ok_or("This video's duration is missing or invalid.")?;
@@ -792,7 +877,7 @@ pub fn parse_probe(root: &Value) -> Result<ClipInfo> {
             .all(|s| s["codec_name"] == "aac")
         && audio_offset.abs() <= 0.04
         && audio.is_none_or(|a| {
-            number(&a["duration"])
+            stream_duration(a)
                 .is_some_and(|d| (d - duration).abs() <= 0.04_f64.max(1.0 / rate_text.1))
         });
     Ok(ClipInfo {
@@ -818,6 +903,7 @@ pub fn parse_probe(root: &Value) -> Result<ClipInfo> {
         hdr,
         color,
         copy_key: simple.then(|| serde_json::to_string(&layout).unwrap()),
+        copy_details: copy::metadata(video, audio, streams),
     })
 }
 
@@ -856,13 +942,194 @@ pub fn inspect(runtime: &Runtime, path: &Path, cancel: &AtomicBool) -> Result<Cl
     let root: Value =
         serde_json::from_slice(&output).map_err(|_| "Cannot read the video's metadata.")?;
     let mut info = parse_probe(&root)?;
+    info.copy_details.format_start =
+        number(&root["format"]["start_time"]).unwrap_or(info.copy_details.video_start);
+    let mp4 = root["format"]["format_name"]
+        .as_str()
+        .is_some_and(|s| s.split(',').any(|name| name == "mp4" || name == "mov"));
+    if mp4 && info.copy_details.audio_key.is_some() && !copy::mp4_audio_safe(path, &info) {
+        info.copy_details.audio_key = None;
+        info.copy_details.audio_issue = Some(CopyIssue::AudioEdits);
+    }
+    if root["format"]["format_name"] == "mpeg" {
+        // MPEG-PS duration estimates can end at the last explicit timestamp,
+        // before frames whose timestamps the decoder must reconstruct.
+        let tail = (number(&root["format"]["duration"]).unwrap_or(info.duration) - 5.0).max(0.0);
+        let mut args = vec![
+            "-v".into(),
+            "error".into(),
+            "-select_streams".into(),
+            info.video_index.to_string(),
+        ];
+        if tail > 0.0 {
+            let start = number(&root["format"]["start_time"]).unwrap_or(0.0) + tail;
+            args.extend(["-read_intervals".into(), format!("{start:.6}%")]);
+        }
+        args.extend([
+            "-show_frames".into(),
+            "-show_entries".into(),
+            "frame=best_effort_timestamp_time,duration_time".into(),
+            "-of".into(),
+            "json".into(),
+            "-i".into(),
+            path_arg(path),
+        ]);
+        let frames = process(&runtime.ffprobe, &args, cancel, None)?;
+        let frames: Value =
+            serde_json::from_slice(&frames).map_err(|_| "Cannot read MPEG video frame timing.")?;
+        let mut end = None;
+        for frame in frames["frames"].as_array().into_iter().flatten() {
+            if let Some(pts) = number(&frame["best_effort_timestamp_time"]).or(end) {
+                let duration = number(&frame["duration_time"])
+                    .filter(|duration| *duration > 0.0)
+                    .unwrap_or(1.0 / info.fps);
+                end = Some(end.unwrap_or(pts).max(pts + duration));
+            }
+        }
+        if end.is_none() && tail > 0.0 {
+            // A successful seek can return no frames. Decode without seeking in that case.
+            // Compact rows keep the end of a long stream within the process output limit.
+            let frames = process(
+                &runtime.ffprobe,
+                &[
+                    "-v".into(),
+                    "error".into(),
+                    "-select_streams".into(),
+                    info.video_index.to_string(),
+                    "-show_frames".into(),
+                    "-show_entries".into(),
+                    "frame=best_effort_timestamp_time,duration_time".into(),
+                    "-of".into(),
+                    "csv=p=0".into(),
+                    "-i".into(),
+                    path_arg(path),
+                ],
+                cancel,
+                None,
+            )?;
+            for line in String::from_utf8_lossy(&frames).lines().skip(1) {
+                let mut fields = line.split(',');
+                let time = fields.next().unwrap_or("");
+                let pts = if time == "N/A" {
+                    end
+                } else {
+                    time.parse::<f64>().ok().filter(|value| value.is_finite())
+                };
+                let duration = fields
+                    .next()
+                    .and_then(|value| value.parse::<f64>().ok())
+                    .filter(|value| value.is_finite() && *value > 0.0)
+                    .unwrap_or(1.0 / info.fps);
+                if let Some(pts) = pts {
+                    end = Some(end.unwrap_or(pts).max(pts + duration));
+                }
+            }
+        }
+        let video_start = root["streams"]
+            .as_array()
+            .and_then(|streams| {
+                streams
+                    .iter()
+                    .find(|stream| stream["index"].as_u64() == Some(info.video_index as u64))
+            })
+            .and_then(|video| number(&video["start_time"]))
+            .unwrap_or(0.0);
+        info.duration = end
+            .map(|end| end - video_start)
+            .filter(|duration| duration.is_finite() && *duration > 0.0)
+            .ok_or("Cannot determine the MPEG video's final frame time.")?;
+    }
     if root["format"]["format_name"]
         .as_str()
         .is_some_and(|s| s.split(',').any(|n| n == "mp4" || n == "mov"))
-        && !single_mp4_descriptions(path)
+        && info.copy_details.video_key.is_some()
     {
-        info.copy_key = None;
+        if !single_mp4_descriptions(path) {
+            info.copy_key = None;
+            info.copy_details.video_key = None;
+            info.copy_details.video_issue = Some(CopyIssue::EditedVideo);
+        } else {
+            // MP4 edit lists can hide reference pictures needed to decode the end.
+            // Packet copying loses their discard status at internal clip boundaries.
+            let mut args = vec![
+                "-v".into(),
+                "error".into(),
+                "-select_streams".into(),
+                info.video_index.to_string(),
+                "-show_packets".into(),
+                "-show_entries".into(),
+                "packet=pts_time,flags".into(),
+                "-of".into(),
+                "json".into(),
+            ];
+            if info.duration > 5.0 {
+                let start =
+                    number(&root["format"]["start_time"]).unwrap_or(0.0) + info.duration - 3.0;
+                args.extend(["-read_intervals".into(), format!("%+2,{start:.6}%")]);
+            }
+            args.extend(["-i".into(), path_arg(path)]);
+            let packets = process(&runtime.ffprobe, &args, cancel, None)?;
+            let packets: Value = serde_json::from_slice(&packets)
+                .map_err(|_| "Cannot read the video's packet timing.")?;
+            let mut discarded = packets["packets"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|packet| {
+                    packet["flags"]
+                        .as_str()
+                        .is_some_and(|flags| flags.contains('D'))
+                });
+            let video_start = root["streams"]
+                .as_array()
+                .and_then(|streams| {
+                    streams
+                        .iter()
+                        .find(|stream| stream["index"].as_u64() == Some(info.video_index as u64))
+                })
+                .and_then(|video| number(&video["start_time"]))
+                .unwrap_or(0.0);
+            let tail_reached = packets["packets"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|packet| number(&packet["pts_time"]))
+                .any(|pts| pts >= video_start + info.duration - 0.25_f64.max(2.0 / info.fps));
+            if info.duration > 5.0 && !discarded && !tail_reached {
+                // FFprobe can silently return no packets after a successful MP4 seek.
+                // Read without seeking when the sample did not reach the video tail.
+                let flags = process(
+                    &runtime.ffprobe,
+                    &[
+                        "-v".into(),
+                        "error".into(),
+                        "-select_streams".into(),
+                        info.video_index.to_string(),
+                        "-show_packets".into(),
+                        "-show_entries".into(),
+                        "packet=flags".into(),
+                        "-of".into(),
+                        "csv=p=0".into(),
+                        "-i".into(),
+                        path_arg(path),
+                    ],
+                    cancel,
+                    None,
+                )?;
+                discarded = String::from_utf8_lossy(&flags).lines().any(|line| {
+                    line.split(',')
+                        .next()
+                        .is_some_and(|flags| flags.contains('D'))
+                });
+            }
+            if discarded {
+                info.copy_key = None;
+                info.copy_details.video_key = None;
+                info.copy_details.video_issue = Some(CopyIssue::EditedVideo);
+            }
+        }
     }
+    info.copy_details.audio_boundary = copy::inspect_audio(runtime, path, &info, cancel)?;
     if stamp(path)? != before {
         return Err("This video changed while it was being read. Add it again after recording has finished.".into());
     }
@@ -918,12 +1185,8 @@ pub fn can_copy(sources: &[Source]) -> bool {
 }
 
 fn copy_compatible<'a>(mut infos: impl Iterator<Item = &'a ClipInfo>) -> bool {
-    infos.next().is_some_and(|first| {
-        first.copy_key.is_some()
-            && infos.all(|info| {
-                info.copy_key == first.copy_key && info.audio_index == first.audio_index
-            })
-    })
+    let infos: Vec<_> = infos.by_ref().collect();
+    !infos.is_empty() && copy::video_reason(&infos).is_none()
 }
 
 fn single_mp4_descriptions(path: &Path) -> bool {
@@ -994,6 +1257,16 @@ fn single_mp4_descriptions(path: &Path) -> bool {
 
 pub fn concatenate(sources: &[Source]) -> Result<String> {
     let mut text = String::from("ffconcat version 1.0\n");
+    let audio_copy = sources
+        .iter()
+        .all(|source| source.info.audio_index.is_some())
+        && copy::audio_reason(
+            &sources
+                .iter()
+                .map(|source| &source.info)
+                .collect::<Vec<_>>(),
+        )
+        .is_none();
     for source in sources {
         let path = path_arg(
             &fs::canonicalize(&source.path)
@@ -1004,6 +1277,13 @@ pub fn concatenate(sources: &[Source]) -> Result<String> {
         }
         let escaped = path.replace('\\', "/").replace('\'', "'\\''");
         text.push_str(&format!("file '{escaped}'\n"));
+        if !audio_copy {
+            text.push_str(&format!(
+                "inpoint {:.9}\n",
+                source.info.copy_details.video_start
+            ));
+        }
+        text.push_str(&format!("duration {:.9}\n", source.info.duration));
     }
     Ok(text)
 }
@@ -1020,6 +1300,14 @@ pub fn conversion_args(
     let width = first.info.width.div_ceil(2) * 2;
     let height = first.info.height.div_ceil(2) * 2;
     let audio = sources.iter().any(|s| s.info.audio_index.is_some());
+    // Reserve CPU capacity for software encoding; increase decoding concurrency for NVIDIA.
+    let decoder_threads =
+        if settings.frame_rate != FrameRate::Original && engine == EncodeEngine::Nvidia {
+            (thread::available_parallelism().map_or(4, |n| n.get()) / sources.len()).clamp(1, 4)
+        } else {
+            1
+        }
+        .to_string();
     let mut args = vec![
         "-v".into(),
         "error".into(),
@@ -1031,7 +1319,7 @@ pub fn conversion_args(
     for source in sources {
         args.extend([
             "-threads".into(),
-            "1".into(),
+            decoder_threads.clone(),
             "-i".into(),
             path_arg(&source.path),
         ]);
@@ -1053,7 +1341,17 @@ pub fn conversion_args(
             String::new()
         };
         let normalize = color_filter(&source.info, color)?;
-        graph.push_str(&format!("[{i}:{}]settb=AVTB,setpts=PTS-STARTPTS+{offset:.6}/TB,{normalize},scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1{tail}[v{i}];",source.info.video_index));
+        // FFmpeg can omit Theora's zero-length repeat frames.
+        let timing = if source.info.codec == "theora" && settings.frame_rate == FrameRate::Original
+        {
+            format!(
+                "setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={:.6},fps={},trim=duration={:.6},setpts=PTS+{offset:.6}/TB",
+                source.info.duration, source.info.rate, source.info.duration
+            )
+        } else {
+            format!("setpts=PTS-STARTPTS+{offset:.6}/TB")
+        };
+        graph.push_str(&format!("[{i}:{}]settb=AVTB,{timing},{normalize},scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1{tail}[v{i}];",source.info.video_index));
         if audio {
             if let Some(index) = source.info.audio_index {
                 graph.push_str(&format!("[{i}:{index}]asetpts=PTS-STARTPTS+{:.6}/TB,aresample=48000:async=1:first_pts=0,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=duration={:.6},asetpts=PTS-STARTPTS[a{i}];",source.info.audio_offset,source.info.duration));
@@ -1147,6 +1445,14 @@ fn video_encoding_args(
     color: VideoColor,
 ) -> Vec<String> {
     let hardware = engine == EncodeEngine::Nvidia;
+    let encoder_threads = thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .min(12);
+    let frame_threads = if encoder_threads >= 8 {
+        4
+    } else {
+        encoder_threads.min(2)
+    };
     let encoder = match (codec, hardware) {
         (VideoCodec::H264, false) => "libx264",
         (VideoCodec::H265, false) => "libx265",
@@ -1178,7 +1484,7 @@ fn video_encoding_args(
             args.extend([
                 "-x265-params".into(),
                 format!(
-                    "pools=4:frame-threads=2:log-level=error{}{}",
+                    "pools={encoder_threads}:frame-threads={frame_threads}:log-level=error{}{}",
                     nominal_rate
                         .map(|rate| format!(":fps={rate}"))
                         .unwrap_or_default(),
@@ -1199,7 +1505,11 @@ fn video_encoding_args(
     }
     args.extend([
         "-threads".into(),
-        "4".into(),
+        if hardware {
+            "4".into()
+        } else {
+            encoder_threads.to_string()
+        },
         "-pix_fmt".into(),
         color.pixel_format(hardware).into(),
     ]);
@@ -1271,13 +1581,14 @@ fn encode_with_cpu_fallback(
     }
 }
 
-fn joined_audio_args(sources: &[Source], output: &Path, script: &Path) -> Result<Vec<String>> {
+fn joined_audio_args(
+    sources: &[Source],
+    output: &Path,
+    script: &Path,
+    conversion: bool,
+) -> Result<Vec<String>> {
     let first = &sources[0].info;
-    let layout = match first.audio_layout.as_str() {
-        "mono" | "stereo" | "2.1" | "3.0" | "4.0" | "quad" | "5.0" | "5.1" | "5.1(side)"
-        | "7.1" | "7.1(wide)" => &first.audio_layout,
-        _ => return Err("This audio channel layout cannot be joined safely.".into()),
-    };
+    let (rate, layout, bitrate) = copy::audio_encoding_format(first, conversion);
     let mut args = vec![
         "-v".into(),
         "error".into(),
@@ -1296,11 +1607,14 @@ fn joined_audio_args(sources: &[Source], output: &Path, script: &Path) -> Result
             "-i".into(),
             path_arg(&source.path),
         ]);
-        let index = source
-            .info
-            .audio_index
-            .ok_or("The source audio track is missing.")?;
-        graph.push_str(&format!("[{i}:{index}]asetpts=PTS-STARTPTS+{:.6}/TB,aresample={}:async=1:first_pts=0,aformat=sample_fmts=fltp:channel_layouts={layout},apad,atrim=duration={:.6},asetpts=PTS-STARTPTS[a{i}];",source.info.audio_offset,first.audio_rate,source.info.duration));
+        if let Some(index) = source.info.audio_index {
+            graph.push_str(&format!("[{i}:{index}]asetpts=PTS-STARTPTS+{:.6}/TB,aresample={rate}:async=1:first_pts=0,aformat=sample_fmts=fltp:channel_layouts={layout},apad,atrim=duration={:.6},asetpts=PTS-STARTPTS[a{i}];",source.info.audio_offset,source.info.duration));
+        } else {
+            graph.push_str(&format!(
+                "anullsrc=r={rate}:cl={layout},atrim=duration={:.6},asetpts=PTS-STARTPTS[a{i}];",
+                source.info.duration
+            ));
+        }
     }
     for i in 0..sources.len() {
         graph.push_str(&format!("[a{i}]"));
@@ -1315,7 +1629,7 @@ fn joined_audio_args(sources: &[Source], output: &Path, script: &Path) -> Result
         "-c:a".into(),
         "aac".into(),
         "-b:a".into(),
-        format!("{}k", first.audio_channels.clamp(1, 8) * 96),
+        format!("{bitrate}k"),
         "-progress".into(),
         "pipe:1".into(),
         "-nostats".into(),
@@ -1349,6 +1663,7 @@ pub fn export(
         return Err("The output folder does not exist.".into());
     }
     let mut locks = Vec::new();
+    let mut verified_sources = Vec::new();
     for source in sources {
         let file = File::options()
             .read(true)
@@ -1369,13 +1684,22 @@ pub fn export(
         }
         locks.push(file);
         let current = inspect(runtime, &source.path, cancel)?;
-        if current != source.info {
+        let mut current_metadata = current.clone();
+        let mut stored_metadata = source.info.clone();
+        current_metadata.copy_details.audio_boundary = None;
+        stored_metadata.copy_details.audio_boundary = None;
+        if current_metadata != stored_metadata {
             return Err(format!(
                 "{} changed after it was added. Remove it and add it again before stitching.",
                 source.path.display()
             ));
         }
+        verified_sources.push(Source {
+            path: source.path.clone(),
+            info: current,
+        });
     }
+    let sources = verified_sources.as_slice();
     if cancel.load(Ordering::Relaxed) {
         return Err("Canceled".into());
     }
@@ -1391,23 +1715,28 @@ pub fn export(
         options.settings,
     )?;
     let mut mode = planned.mode;
+    let mut audio_mode = planned.audio_mode;
+    let mut reason = planned.audio_reason.or(planned.video_reason);
     let mut engine = planned.engine(options.nvidia);
-    if mode == ExportMode::Copy {
-        fs::write(&manifest, concatenate(sources)?).map_err(|e| e.to_string())?;
+    fs::write(&manifest, concatenate(sources)?).map_err(|e| e.to_string())?;
+    while mode == ExportMode::Copy {
         update(Progress {
             percent: 0.0,
             mode,
+            audio_mode,
+            reason,
             engine: None,
         });
-        // Decode each source's AAC preroll and trim its padding before a single audio encode.
-        // This preserves the copied video while avoiding audible gaps and AAC boundary artifacts.
-        let joined_audio = if sources[0].info.audio_index.is_some() {
+        let joined_audio = if audio_mode == AudioMode::Encode {
             let audio = work.path.join("audio.m4a");
-            let args = joined_audio_args(sources, &audio, &work.path.join("audio-filters.txt"))?;
+            let args =
+                joined_audio_args(sources, &audio, &work.path.join("audio-filters.txt"), false)?;
             let mut progress = |seconds: f64| {
                 update(Progress {
                     percent: (seconds / total * 25.0).clamp(0.0, 25.0),
                     mode,
+                    audio_mode,
+                    reason,
                     engine: None,
                 })
             };
@@ -1416,42 +1745,21 @@ pub fn export(
         } else {
             None
         };
-        let mut args = vec![
-            "-v".into(),
-            "error".into(),
-            "-nostdin".into(),
-            "-y".into(),
-            "-f".into(),
-            "concat".into(),
-            "-auto_convert".into(),
-            "0".into(),
-            "-safe".into(),
-            "0".into(),
-            "-i".into(),
-            path_arg(&manifest),
-        ];
-        if let Some(audio) = joined_audio.as_ref() {
-            args.extend(["-i".into(), path_arg(audio)]);
-        }
-        args.extend(["-map".into(), format!("0:{}", sources[0].info.video_index)]);
-        if joined_audio.is_some() {
-            args.extend(["-map".into(), "1:a:0".into()]);
-        }
-        args.extend([
-            "-c".into(),
-            "copy".into(),
-            "-movflags".into(),
-            "+faststart".into(),
-            "-progress".into(),
-            "pipe:1".into(),
-            "-nostats".into(),
-            path_arg(&output),
-        ]);
+        let args = copy::mux_args(
+            &manifest,
+            sources,
+            None,
+            audio_mode,
+            joined_audio.as_deref(),
+            &output,
+        );
         let base = if joined_audio.is_some() { 25.0 } else { 0.0 };
         let mut progress = |seconds: f64| {
             update(Progress {
                 percent: base + (seconds / total * (96.0 - base)).clamp(0.0, 96.0 - base),
                 mode,
+                audio_mode,
+                reason,
                 engine: None,
             })
         };
@@ -1460,27 +1768,55 @@ pub fn export(
                 runtime,
                 &output,
                 sources,
-                mode,
-                planned.codec,
-                options.settings.frame_rate,
+                OutputCheck {
+                    mode,
+                    codec: planned.codec,
+                    frame_rate: options.settings.frame_rate,
+                    audio_mode,
+                },
                 cancel,
             )
         });
-        if copied.is_err() {
-            if cancel.load(Ordering::Relaxed) {
-                return Err("Canceled".into());
+        match copied {
+            Ok(()) => break,
+            Err(_) if cancel.load(Ordering::Relaxed) => return Err("Canceled".into()),
+            Err(_) if audio_mode == AudioMode::Copy => {
+                audio_mode = AudioMode::Encode;
+                reason = Some(EncodingReason {
+                    clip: 0,
+                    issue: CopyIssue::AudioCopyFailed,
+                });
             }
-            mode = ExportMode::Convert;
+            Err(_) => {
+                mode = ExportMode::Convert;
+                reason = Some(EncodingReason {
+                    clip: 0,
+                    issue: CopyIssue::VideoCopyFailed,
+                });
+            }
         }
     }
     if mode == ExportMode::Convert {
         let script = work.path.join("filters.txt");
         let codec = options.settings.codec;
+        let copy_audio = audio_mode == AudioMode::Copy;
+        let video_output = if copy_audio {
+            work.path.join("video.mp4")
+        } else {
+            output.clone()
+        };
+        let mut video_sources = sources.to_vec();
+        if copy_audio {
+            for source in &mut video_sources {
+                source.info.audio_index = None;
+            }
+        }
         engine = Some(encode_with_cpu_fallback(
             engine.unwrap_or(EncodeEngine::Cpu),
             cancel,
             |attempt| {
-                let mut args = conversion_args(sources, &output, options.settings, attempt)?;
+                let mut args =
+                    conversion_args(&video_sources, &video_output, options.settings, attempt)?;
                 let index = args.iter().position(|s| s == "-filter_complex").unwrap();
                 fs::write(&script, &args[index + 1]).map_err(|e| e.to_string())?;
                 args[index] = "-/filter_complex".into();
@@ -1489,31 +1825,102 @@ pub fn export(
                 update(Progress {
                     percent: 0.0,
                     mode,
+                    audio_mode,
+                    reason,
                     engine: Some(attempt),
                 });
                 let mut progress = |seconds: f64| {
                     update(Progress {
-                        percent: (seconds / total * 96.0).clamp(0.0, 96.0),
+                        percent: (seconds / total * 90.0).clamp(0.0, 90.0),
                         mode,
+                        audio_mode,
+                        reason,
                         engine: Some(attempt),
                     })
                 };
                 process(&runtime.ffmpeg, &args, cancel, Some(&mut progress))?;
                 validate(
                     runtime,
-                    &output,
-                    sources,
-                    mode,
-                    codec,
-                    options.settings.frame_rate,
+                    &video_output,
+                    &video_sources,
+                    OutputCheck {
+                        mode,
+                        codec,
+                        frame_rate: options.settings.frame_rate,
+                        audio_mode: if copy_audio {
+                            AudioMode::None
+                        } else {
+                            audio_mode
+                        },
+                    },
                     cancel,
                 )
             },
         )?);
+        if copy_audio {
+            loop {
+                let encoded_audio = if audio_mode == AudioMode::Encode {
+                    let audio = work.path.join("audio.m4a");
+                    let args = joined_audio_args(
+                        sources,
+                        &audio,
+                        &work.path.join("audio-filters.txt"),
+                        true,
+                    )?;
+                    update(Progress {
+                        percent: 90.0,
+                        mode,
+                        audio_mode,
+                        reason,
+                        engine,
+                    });
+                    process(&runtime.ffmpeg, &args, cancel, None)?;
+                    Some(audio)
+                } else {
+                    None
+                };
+                let args = copy::mux_args(
+                    &manifest,
+                    sources,
+                    Some(&video_output),
+                    audio_mode,
+                    encoded_audio.as_deref(),
+                    &output,
+                );
+                let result = process(&runtime.ffmpeg, &args, cancel, None).and_then(|_| {
+                    validate(
+                        runtime,
+                        &output,
+                        sources,
+                        OutputCheck {
+                            mode,
+                            codec,
+                            frame_rate: options.settings.frame_rate,
+                            audio_mode,
+                        },
+                        cancel,
+                    )
+                });
+                match result {
+                    Ok(()) => break,
+                    Err(_) if cancel.load(Ordering::Relaxed) => return Err("Canceled".into()),
+                    Err(_) if audio_mode == AudioMode::Copy => {
+                        audio_mode = AudioMode::Encode;
+                        reason = Some(EncodingReason {
+                            clip: 0,
+                            issue: CopyIssue::AudioCopyFailed,
+                        });
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        }
     }
     update(Progress {
         percent: 98.0,
         mode,
+        audio_mode,
+        reason,
         engine,
     });
     if cancel.load(Ordering::Relaxed) {
@@ -1525,6 +1932,9 @@ pub fn export(
         .open(&output)
         .and_then(|f| f.sync_all())
         .map_err(|e| format!("Cannot finish the output file: {e}"))?;
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Canceled".into());
+    }
     let from = wide(&output);
     let to = wide(destination);
     if unsafe {
@@ -1543,20 +1953,33 @@ pub fn export(
     update(Progress {
         percent: 100.0,
         mode,
+        audio_mode,
+        reason,
         engine,
     });
     Ok(mode)
+}
+
+struct OutputCheck {
+    mode: ExportMode,
+    codec: VideoCodec,
+    frame_rate: FrameRate,
+    audio_mode: AudioMode,
 }
 
 fn validate(
     runtime: &Runtime,
     output: &Path,
     sources: &[Source],
-    mode: ExportMode,
-    codec: VideoCodec,
-    frame_rate: FrameRate,
+    check: OutputCheck,
     cancel: &AtomicBool,
 ) -> Result<()> {
+    let OutputCheck {
+        mode,
+        codec,
+        frame_rate,
+        audio_mode,
+    } = check;
     let info = inspect(runtime, output, cancel)?;
     let total: f64 = sources.iter().map(|s| s.info.duration).sum();
     let fps = frame_rate.fps().unwrap_or_else(|| {
@@ -1571,7 +1994,7 @@ fn validate(
     {
         return Err("The output duration or audio does not match the clip list.".into());
     }
-    if mode == ExportMode::Convert && info.codec != codec.probe_name() {
+    if info.codec != codec.probe_name() {
         return Err("The output video format is invalid.".into());
     }
     if mode == ExportMode::Convert {
@@ -1608,6 +2031,9 @@ fn validate(
     };
     if (info.width, info.height) != expected {
         return Err("The output dimensions do not match the clip list.".into());
+    }
+    if audio_mode == AudioMode::Copy {
+        copy::validate_audio(runtime, output, sources, &info, cancel)?;
     }
     Ok(())
 }
@@ -1957,6 +2383,8 @@ mod tests {
         let mut info = parse_probe(&fixture()).unwrap();
         info.color.dolby_vision_profile = Some(5);
         info.copy_key = None;
+        info.copy_details.video_key = None;
+        info.copy_details.video_issue = Some(CopyIssue::VideoConfiguration);
         let error = plan(&[&info], ExportSettings::default()).unwrap_err();
         assert!(error.contains("Dolby Vision"));
         assert!(error.contains("HDR10 or HLG"));
@@ -2128,6 +2556,8 @@ mod tests {
     fn quality_estimate_accounts_for_repeated_clips_geometry_rates_and_audio() {
         let mut first = parse_probe(&fixture()).unwrap();
         first.copy_key = None;
+        first.copy_details.video_key = None;
+        first.copy_details.video_issue = Some(CopyIssue::VideoConfiguration);
         first.width = 1920;
         first.height = 1080;
         first.fps = 30.0;
@@ -2177,6 +2607,8 @@ mod tests {
     fn quality_estimate_uses_a_reference_rate_when_video_bitrate_is_invalid() {
         let mut info = parse_probe(&fixture()).unwrap();
         info.copy_key = None;
+        info.copy_details.video_key = None;
+        info.copy_details.video_issue = Some(CopyIssue::VideoConfiguration);
         info.width = 1919;
         info.height = 1079;
         info.fps = 30.0;
@@ -2229,6 +2661,8 @@ mod tests {
             Some(300_000)
         );
         first.copy_key = None;
+        first.copy_details.video_key = None;
+        first.copy_details.video_issue = Some(CopyIssue::VideoConfiguration);
         let automatic = plan(
             &[&first],
             ExportSettings {
@@ -2398,6 +2832,38 @@ mod tests {
             },
         ];
         assert!(!can_copy(&sources));
+    }
+
+    #[test]
+    fn matroska_duration_tags_allow_copy_only_with_matching_audio_timing() {
+        let mut raw = fixture();
+        raw["streams"]
+            .as_array_mut()
+            .unwrap()
+            .push(serde_json::json!({
+                "index":1,"codec_type":"audio","codec_name":"aac",
+                "extradata_hash":"SHA256:audio","start_time":"0.020",
+                "tags":{"DURATION":"00:00:02.020000000"}
+            }));
+        assert!(parse_probe(&raw).unwrap().copy_key.is_some());
+        raw["streams"][1]["duration"] = "1.0".into();
+        assert!(parse_probe(&raw).unwrap().copy_key.is_none());
+        raw["streams"][1]["duration"] = Value::Null;
+        for invalid in [
+            "00:00:01.000",
+            "00:60:02.020",
+            "00:00:60.0",
+            "00:00:NaN",
+            "00:00:inf",
+            "-1:00:02",
+            "00:00:02:00",
+            "",
+        ] {
+            raw["streams"][1]["tags"]["DURATION"] = invalid.into();
+            assert!(parse_probe(&raw).unwrap().copy_key.is_none(), "{invalid}");
+        }
+        raw["streams"][1]["tags"]["DURATION"] = Value::Null;
+        assert!(parse_probe(&raw).unwrap().copy_key.is_none());
     }
 
     #[test]

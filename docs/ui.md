@@ -77,6 +77,14 @@ Until all clip lengths are available, the total length shows a dash.
 The app shows the file size indication adjacent to the total length.
 It shows the export mode or media error on the right side of the summary.
 
+The export mode identifies the video operation and the audio operation.
+The labels are `Copy video and audio`, `Copy video · encode audio`, `Encode video · copy audio`, and `Encode video and audio`.
+
+Lists without audio show only the video operation.
+The status line gives the first encoding cause and its clip number when applicable.
+F1 opens all export causes and the filenames of those clips.
+The app uses automatic encoding for tracks that it cannot copy safely.
+
 The File size row has four buttons: Keep source, Small, Medium, and Large.
 Keep source is the default selection and is separate from the three size targets.
 If the clips permit copying, Keep source copies the source video packets.
@@ -116,6 +124,7 @@ Values smaller than one MB use 10 KB increments.
 During export, the app disables the setting buttons and locks the keyboard setting controls.
 The clip count and total length stay visible above the settings.
 The progress and result status identify a CPU retry after NVIDIA failure.
+They also identify a change from audio copying to audio encoding.
 HDR and 10-bit input do not prevent export with a fixed frame rate or size target.
 Color conversion needs no additional UI setting.
 
@@ -128,6 +137,7 @@ A opens the Windows `IFileOpenDialog` file picker.
 The picker lets you select multiple local files.
 Its filter includes video extensions and an All files option.
 File selection does not bypass media inspection.
+The [media selection reference](media.md#media-selection) gives the input extension list and inspection conditions.
 
 The app supplies its window as the dialog owner.
 After cancellation or file selection, the app requests foreground activation and restores keyboard focus within its UI thread.
@@ -197,7 +207,7 @@ Use typical local videos for these checks:
 9. Drop video files on the list. Make sure that the app adds each file.
 10. Resize the window. Make sure that you can use the list and controls.
 11. Close the app. Open it again with the same state folder. Make sure that the list returns.
-12. Add clips with matching video settings. Make sure that the summary shows `Copy`.
+12. Add clips with matching video settings. Examine the video copy label and the selected audio operation.
 13. Press +. Make sure that Small and an approximate target file size appear.
 14. Press +. Make sure that Medium appears.
 15. Press -. Make sure that Small appears.
@@ -228,6 +238,12 @@ Use typical local videos for these checks:
     Press H to open Help again.
     Press Esc to close Help.
     Make sure that the bottom controls keep their dark background.
+
+Before export, press F1.
+During export, press F1.
+Examine all causes and filenames in Export details.
+Close Export details.
+Make sure that keyboard focus returns to Stitch.
 
 If a check fails, record the build, Windows version, input method, and screen result.
 Keep automated reports and observed acceptance results separate.

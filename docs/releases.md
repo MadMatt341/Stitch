@@ -144,7 +144,7 @@ From the project root, run:
 ```
 
 This script verifies source pins, archive hashes, binary hashes, required encoders, and required filters.
-It then runs the three media acceptance checks locally with the current application source.
+It then runs the media acceptance checks locally with the current application source.
 If validation fails, examine the local logs and reports before you correct the reported cause.
 Record the checked source revision, runtime hashes, environment, results, and remaining limits in a committed check record.
 
@@ -161,7 +161,7 @@ Do not create this verified record before the source audit and applicable runtim
 From the project root, prepare the release files:
 
 ```powershell
-./scripts/package-release.ps1 -RuntimeDirectory build/runtime-candidate -Version 0.1.1-beta
+./scripts/package-release.ps1 -RuntimeDirectory build/runtime-candidate -Version 0.1.2-beta
 ```
 
 The script requires clean, committed source at `origin/main` and the verified runtime manifest.
@@ -194,3 +194,5 @@ Keep dated results and raw reports separate from this procedure.
 The [2026-10-14 preparation record](reviews/2026-10-14-public-release-preparation.md) gives the public source boundary and build corrections.
 
 The [0.1.1 beta check record](reviews/2026-10-14-quality-release.md) gives local results and remaining limits for that application release.
+
+The [0.1.2 beta check record](reviews/2026-10-14-joining-release.md) gives local results and remaining limits for the combined joining changes.

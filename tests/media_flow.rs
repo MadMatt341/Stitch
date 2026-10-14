@@ -18,6 +18,221 @@ fn engine() -> Runtime {
     Runtime::beside(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("build/Stitch.exe"))
         .expect("Run scripts/build.ps1 first")
 }
+
+#[test]
+#[ignore = "requires the pinned FFmpeg engine; verifies discarded reference pictures"]
+fn edited_mp4_reference_frames_require_conversion() {
+    let runtime = engine();
+    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "build/test-output/edit-flow-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&folder).unwrap();
+    let red = folder.join("edited-red.mp4");
+    let blue = folder.join("blue.mp4");
+    for (path, color) in [(&red, "red"), (&blue, "blue")] {
+        run(
+            &runtime.ffmpeg,
+            &[
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                &format!("color=c={color}:s=160x90:r=30:d=6"),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-bf",
+                "2",
+                "-g",
+                "30",
+                "-pix_fmt",
+                "yuv420p",
+                path.to_str().unwrap(),
+            ],
+        );
+    }
+    let mut bytes = fs::read(&red).unwrap();
+    let movie = bytes.windows(4).position(|bytes| bytes == b"mvhd").unwrap();
+    assert_eq!(bytes[movie + 4], 0);
+    let timescale = u32::from_be_bytes(bytes[movie + 16..movie + 20].try_into().unwrap());
+    let edit = bytes.windows(4).position(|bytes| bytes == b"elst").unwrap();
+    assert_eq!(bytes[edit + 4], 0);
+    assert_eq!(
+        u32::from_be_bytes(bytes[edit + 8..edit + 12].try_into().unwrap()),
+        1
+    );
+    let duration = u32::from_be_bytes(bytes[edit + 12..edit + 16].try_into().unwrap());
+    bytes[edit + 12..edit + 16].copy_from_slice(&(duration - timescale / 10).to_be_bytes());
+    fs::write(&red, &bytes).unwrap();
+    let blue_bytes = fs::read(&blue).unwrap();
+    let sources = [source(&runtime, &red), source(&runtime, &blue)];
+    assert!(sources[0].info.copy_key.is_none());
+    assert!(!media::can_copy(&sources));
+    for _ in 0..8 {
+        for source in &sources {
+            assert_eq!(
+                media::inspect(&runtime, &source.path, &AtomicBool::new(false)).unwrap(),
+                source.info
+            );
+        }
+    }
+    let expected: Vec<_> = sources
+        .iter()
+        .flat_map(|source| colors(&runtime, &source.path))
+        .collect();
+    let output = folder.join("joined.mp4");
+    assert_eq!(
+        media::export(
+            &runtime,
+            &sources,
+            &output,
+            ExportOptions::default(),
+            &AtomicBool::new(false),
+            |_| {}
+        )
+        .unwrap(),
+        ExportMode::Convert
+    );
+    let frames = colors(&runtime, &output);
+    assert_eq!(frames.len(), expected.len());
+    for (pixel, source) in frames.iter().zip(&expected) {
+        assert_eq!(pixel[0] > pixel[2], source[0] > source[2]);
+    }
+    let times = frame_times(&runtime, &output);
+    assert!(times.windows(2).all(|pair| pair[1] > pair[0]));
+    assert_eq!(fs::read(red).unwrap(), bytes);
+    assert_eq!(fs::read(blue).unwrap(), blue_bytes);
+    clean_partials(&folder);
+}
+
+#[test]
+#[ignore = "requires the pinned FFmpeg engine and its prepared fixture encoder"]
+fn legacy_containers_keep_complete_video_timing() {
+    let runtime = engine();
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let folder = root.join(format!(
+        "build/test-output/container-flow-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&folder).unwrap();
+    let mut theora = runtime.ffmpeg.clone();
+    if !String::from_utf8_lossy(&run(&theora, &["-hide_banner", "-encoders"])).contains("libtheora")
+    {
+        theora = fs::read_dir(root.join(".reader-data/runtime"))
+            .expect("Run scripts/build.ps1 to prepare fixture encoders")
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path().join("bin/ffmpeg.exe"))
+            .find(|path| {
+                path.is_file()
+                    && String::from_utf8_lossy(&run(path, &["-hide_banner", "-encoders"]))
+                        .contains("libtheora")
+            })
+            .expect("The prepared fixture encoder must support Theora");
+    }
+    for (extension, muxer, video, audio, generator) in [
+        ("mpg", "mpeg", "mpeg2video", "mp2", &runtime.ffmpeg),
+        ("vob", "vob", "mpeg2video", "ac3", &runtime.ffmpeg),
+        ("ogv", "ogg", "libtheora", "libvorbis", &theora),
+    ] {
+        let mut sources = Vec::new();
+        let mut original = Vec::new();
+        let mut expected = Vec::new();
+        for (index, color) in ["red", "blue"].into_iter().enumerate() {
+            let duration = if extension == "mpg" && index == 0 {
+                8
+            } else {
+                2
+            };
+            let path = folder.join(format!("{index}.{extension}"));
+            run(
+                generator,
+                &[
+                    "-v",
+                    "error",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    &format!("color=c={color}:s=160x90:r=30:d={duration}"),
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    &format!("sine=sample_rate=48000:duration={duration}"),
+                    "-c:v",
+                    video,
+                    "-c:a",
+                    audio,
+                    "-ac",
+                    "2",
+                    "-ar",
+                    "48000",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-f",
+                    muxer,
+                    path.to_str().unwrap(),
+                ],
+            );
+            original.push((path.clone(), fs::read(&path).unwrap()));
+            let source = source(&runtime, &path);
+            assert!((source.info.duration - duration as f64).abs() < 0.05);
+            for _ in 0..4 {
+                assert_eq!(
+                    media::inspect(&runtime, &path, &AtomicBool::new(false)).unwrap(),
+                    source.info
+                );
+            }
+            expected.extend(std::iter::repeat_n(index, duration * 30));
+            sources.push(source);
+        }
+        for frame_rate in [FrameRate::Original, FrameRate::Fps30, FrameRate::Fps60] {
+            let output = folder.join(format!("{extension}-{frame_rate:?}.mp4"));
+            media::export(
+                &runtime,
+                &sources,
+                &output,
+                ExportOptions {
+                    settings: ExportSettings {
+                        frame_rate,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                &AtomicBool::new(false),
+                |_| {},
+            )
+            .unwrap();
+            let frames = colors(&runtime, &output);
+            let multiplier = if frame_rate == FrameRate::Fps60 { 2 } else { 1 };
+            assert_eq!(frames.len(), expected.len() * multiplier);
+            for (index, pixel) in frames.iter().enumerate() {
+                let blue = expected[index / multiplier] == 1;
+                assert!(
+                    if blue {
+                        pixel[2] > 180 && pixel[0] < 60
+                    } else {
+                        pixel[0] > 180 && pixel[2] < 60
+                    },
+                    "{extension} frame {index}: {pixel:?}"
+                );
+            }
+            assert!(
+                media::inspect(&runtime, &output, &AtomicBool::new(false))
+                    .unwrap()
+                    .audio_index
+                    .is_some()
+            );
+        }
+        for (path, bytes) in original {
+            assert_eq!(fs::read(path).unwrap(), bytes);
+        }
+        clean_partials(&folder);
+    }
+}
 fn run(tool: &Path, args: &[&str]) -> Vec<u8> {
     let output = Command::new(tool).args(args).output().unwrap();
     assert!(
@@ -1180,6 +1395,54 @@ fn actual_copy_conversion_cancellation_and_failure_boundaries() {
         (audio.len() as f64 / 96000.0 - 1.5).abs() < 0.08,
         "Copied audio length is wrong"
     );
+    let mut mkv_sources = Vec::new();
+    let mut mkv_originals = Vec::new();
+    for (index, original) in [&blue, &red, &blue].into_iter().enumerate() {
+        let path = folder.join(format!("copy-container-{index}.mkv"));
+        run(
+            &runtime.ffmpeg,
+            &[
+                "-v",
+                "error",
+                "-y",
+                "-i",
+                original.to_str().unwrap(),
+                "-map",
+                "0",
+                "-c",
+                "copy",
+                path.to_str().unwrap(),
+            ],
+        );
+        mkv_originals.push((path.clone(), fs::read(&path).unwrap()));
+        mkv_sources.push(source(&runtime, &path));
+    }
+    assert!(media::can_copy(&mkv_sources));
+    let mkv_output = folder.join("copied-mkv.mp4");
+    assert_eq!(
+        media::export(
+            &runtime,
+            &mkv_sources,
+            &mkv_output,
+            ExportOptions::default(),
+            &cancel,
+            |_| {},
+        )
+        .unwrap(),
+        ExportMode::Copy,
+    );
+    assert_eq!(packet_hashes(&runtime, &mkv_output), expected);
+    assert_eq!(colors(&runtime, &mkv_output), frames);
+    assert!(
+        media::inspect(&runtime, &mkv_output, &cancel)
+            .unwrap()
+            .audio_index
+            .is_some()
+    );
+    for (path, bytes) in mkv_originals {
+        assert_eq!(fs::read(path).unwrap(), bytes);
+    }
+    clean_partials(&folder);
     let mixed = vec![source(&runtime, &red), source(&runtime, &silent)];
     let quality = media::plan(
         &mixed.iter().map(|source| &source.info).collect::<Vec<_>>(),

@@ -16,6 +16,10 @@ The app stores its list and settings in %LOCALAPPDATA%\Stitch.
 Close the app before you move or remove its folder.
 
 Keep source preserves compatible video without new encoding.
+It also copies compatible AAC-LC audio when the packet timing is correct for the join.
+If copying is not possible, Stitch encodes the necessary tracks automatically.
+The summary shows both track operations.
+Press F1 to see the encoding causes and affected clips.
 For other supported input, Stitch makes H.265 output automatically.
 Small, Medium, and Large select approximate file size targets.
 Original keeps each clip's frame timing.

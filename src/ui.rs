@@ -15,9 +15,9 @@ use std::{
 use stitch::media::FrameRate;
 use stitch::{
     media::{
-        self, ClipInfo, EncodeEngine, ExportMode, ExportOptions, ExportPlan, ExportPreset,
-        ExportSettings, NvidiaSupport, Progress, Runtime, Source, THUMB_HEIGHT, THUMB_WIDTH,
-        VideoCodec,
+        self, AudioMode, ClipInfo, EncodeEngine, EncodingReason, ExportMode, ExportOptions,
+        ExportPlan, ExportPreset, ExportSettings, NvidiaSupport, Progress, Runtime, Source,
+        THUMB_HEIGHT, THUMB_WIDTH, VideoCodec,
     },
     queue::Queue,
 };
@@ -135,6 +135,8 @@ struct Run {
     canceled: Arc<AtomicBool>,
     percent: f64,
     mode: ExportMode,
+    audio_mode: AudioMode,
+    reasons: Vec<EncodingReason>,
     engine: Option<EncodeEngine>,
     destination: PathBuf,
 }
@@ -201,14 +203,11 @@ impl Core {
             Ok(plan) => plan,
             Err(error) => return (error, None),
         };
-        if self
-            .busy
-            .as_ref()
-            .is_some_and(|run| run.mode == ExportMode::Convert)
-            && self.settings.preset == ExportPreset::Source
-        {
-            plan.mode = ExportMode::Convert;
-            plan.estimated_bytes = media::estimate_quality_bytes(&infos, self.settings);
+        if let Some(run) = &self.busy {
+            plan.mode = run.mode;
+            plan.audio_mode = run.audio_mode;
+            plan.estimated_bytes =
+                media::estimate_export_bytes(&infos, self.settings, run.mode, run.audio_mode);
         }
         let size = plan
             .estimated_bytes
@@ -224,16 +223,46 @@ impl Core {
                 )
             })
             .unwrap_or_else(|| "Size unavailable".into());
-        let action = if plan.mode == ExportMode::Copy {
-            "Copy"
-        } else {
-            match self.busy.as_ref().and_then(|run| run.engine) {
-                Some(EncodeEngine::Nvidia) => "GPU encoding",
-                Some(EncodeEngine::CpuFallback) => "CPU retry",
-                _ => "Re-encode",
-            }
+        let action = media::copy::action(plan.mode, plan.audio_mode);
+        let action = match self.busy.as_ref().and_then(|run| run.engine) {
+            Some(EncodeEngine::Nvidia) => format!("GPU · {action}"),
+            Some(EncodeEngine::CpuFallback) => format!("CPU retry · {action}"),
+            _ => action.into(),
         };
-        (action.into(), Some(size))
+        (action, Some(size))
+    }
+
+    fn encoding_reasons(&self) -> Vec<EncodingReason> {
+        if let Some(run) = &self.busy {
+            return run.reasons.clone();
+        }
+        self.export_plan()
+            .map(|plan| {
+                [plan.video_reason, plan.audio_reason]
+                    .into_iter()
+                    .flatten()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn export_explanation(&self) -> String {
+        self.encoding_reasons()
+            .into_iter()
+            .map(|reason| {
+                let detail = reason.text();
+                if reason.clip > 0 {
+                    self.queue
+                        .entries
+                        .get(reason.clip - 1)
+                        .map(|entry| format!("{detail}\n{}", filename(&entry.path)))
+                        .unwrap_or(detail)
+                } else {
+                    detail
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n")
     }
 
     fn label(&self, index: usize) -> String {
@@ -249,7 +278,7 @@ impl Core {
 
 enum Event {
     Nvidia(NvidiaSupport),
-    Info(u64, media::Result<ClipInfo>),
+    Info(u64, Box<media::Result<ClipInfo>>),
     Thumb(u64, Option<Vec<u8>>),
     Progress(Progress),
     Finished(media::Result<ExportMode>),
@@ -342,7 +371,7 @@ impl App {
                     .as_ref()
                     .map_err(Clone::clone)
                     .and_then(|r| media::inspect(r, &request.path, &request.canceled));
-                worker_port.send(Event::Info(request.id, info.clone()));
+                worker_port.send(Event::Info(request.id, Box::new(info.clone())));
                 let thumb = info.as_ref().ok().and_then(|i| {
                     engine
                         .as_ref()
@@ -1001,6 +1030,11 @@ impl App {
             canceled: canceled.clone(),
             percent: 0.0,
             mode: plan.mode,
+            audio_mode: plan.audio_mode,
+            reasons: [plan.video_reason, plan.audio_reason]
+                .into_iter()
+                .flatten()
+                .collect(),
             engine: plan.engine(options.nvidia),
             destination: destination.clone(),
         });
@@ -1039,7 +1073,7 @@ impl App {
                 }
                 Event::Info(id, info) => {
                     if let Some(clip) = self.core.borrow_mut().clips.get_mut(&id) {
-                        clip.info = Some(info);
+                        clip.info = Some(*info);
                         labels.push(id);
                         changed = true;
                     }
@@ -1062,6 +1096,12 @@ impl App {
                     if let Some(run) = core.busy.as_mut() {
                         run.percent = progress.percent;
                         run.mode = progress.mode;
+                        run.audio_mode = progress.audio_mode;
+                        if let Some(reason) = progress.reason
+                            && !run.reasons.contains(&reason)
+                        {
+                            run.reasons.push(reason);
+                        }
                         run.engine = progress.engine;
                         changed = true;
                     }
@@ -1077,11 +1117,24 @@ impl App {
                         Ok(_) => {
                             if let Some(run) = run {
                                 core.status = Some(format!(
-                                    "Saved {} · {}",
+                                    "Saved {} · {}{}{}",
                                     filename(&run.destination),
+                                    media::copy::action(run.mode, run.audio_mode),
                                     run.engine
-                                        .map(EncodeEngine::label)
-                                        .unwrap_or("Source video copied")
+                                        .map(|engine| format!(" · {}", engine.label()))
+                                        .unwrap_or_default(),
+                                    if run.reasons.is_empty() {
+                                        String::new()
+                                    } else {
+                                        format!(
+                                            " · {}",
+                                            run.reasons
+                                                .iter()
+                                                .map(|reason| reason.text())
+                                                .collect::<Vec<_>>()
+                                                .join("; ")
+                                        )
+                                    }
                                 ));
                                 core.output = Some(run.destination);
                             }
@@ -1125,6 +1178,45 @@ impl App {
         }
         if key == VK_F4 as u32 {
             return false;
+        }
+        if key == VK_F1 as u32 {
+            let core = self.core.borrow();
+            let explanation = core.export_explanation();
+            let detail = if core.export_plan().is_none() {
+                "Add readable local videos to see the export plan.".into()
+            } else if explanation.is_empty() {
+                "No re-encoding is needed for compatible selected tracks.".into()
+            } else {
+                explanation
+            };
+            let message = format!(
+                "{}\n\nExport plan: {}\n\n{}\n\nStitch automatically encodes tracks that cannot be copied safely.",
+                core.status.as_deref().unwrap_or("Export details"),
+                core.preview().0,
+                detail
+            );
+            let focus = if core.queue.entries.is_empty() || core.help || core.busy.is_some() {
+                self.hwnd.get()
+            } else {
+                self.widgets.get().list
+            };
+            drop(core);
+            self.core.borrow_mut().dialog = true;
+            unsafe {
+                MessageBoxW(
+                    self.hwnd.get(),
+                    wide(&message).as_ptr(),
+                    wide("Export details").as_ptr(),
+                    MB_OK | MB_ICONINFORMATION,
+                );
+            }
+            self.core.borrow_mut().dialog = false;
+            unsafe {
+                SetForegroundWindow(self.hwnd.get());
+                SetActiveWindow(self.hwnd.get());
+                SetFocus(focus);
+            }
+            return true;
         }
         if control && key == b'Q' as u32 {
             unsafe {
@@ -1322,6 +1414,7 @@ impl App {
                 ("+ / −", "Keep source / Small / Medium / Large"),
                 ("F / Shift+F", "Original / 30 / 60 fps"),
                 ("H / Esc", "Dismiss help"),
+                ("F1", "Explain this export"),
                 ("Ctrl + Q / Alt + F4", "Quit Stitch"),
             ];
             let row_height = ((rect.bottom - top - p(112)) / rows.len() as i32).clamp(p(16), p(24));
@@ -1437,11 +1530,11 @@ impl App {
             }
             let summary_right = rect.right - p(18);
             let old_font = SelectObject(dc, self.small.get() as _);
-            let label = wide(&count);
+            let label = wide(&detail);
             let mut extent: SIZE = std::mem::zeroed();
             GetTextExtentPoint32W(dc, label.as_ptr(), label.len() as i32 - 1, &mut extent);
             SelectObject(dc, old_font);
-            let detail_left = (p(18) + extent.cx + p(16)).min(summary_right);
+            let detail_left = summary_right - extent.cx.min((summary_right - p(18)) / 2);
             text(
                 dc,
                 self.small.get(),
@@ -1449,7 +1542,7 @@ impl App {
                 RECT {
                     left: p(18),
                     top: rect.bottom - p(164),
-                    right: summary_right,
+                    right: detail_left - p(16),
                     bottom: rect.bottom - p(140),
                 },
                 TEXT,
@@ -1486,16 +1579,18 @@ impl App {
                 );
             }
         }
-        let status = if let Some(run) = core.busy.as_ref() {
-            match run.mode {
-                ExportMode::Copy => "Joining video",
-                ExportMode::Convert => "Converting to a consistent MP4",
-            }
-            .to_owned()
+        let status = if core.busy.is_some() {
+            core.encoding_reasons()
+                .first()
+                .map(|reason| format!("{} · F1 for details", reason.text()))
+                .unwrap_or_else(|| "Copying selected tracks without re-encoding".into())
         } else if let Some(status) = core.status.as_ref() {
             status.clone()
         } else {
-            String::new()
+            core.encoding_reasons()
+                .first()
+                .map(|reason| format!("{} · F1 for details", reason.text()))
+                .unwrap_or_default()
         };
         let right = if core.output.is_some() {
             rect.right - p(270)
@@ -2489,16 +2584,21 @@ mod tests {
     #[test]
     fn quality_conversion_keeps_an_estimate_when_copy_falls_back() {
         let mut core = ready_core();
-        assert_eq!(core.preview(), ("Copy".into(), Some("Est. ≈ 4 MB".into())));
+        assert_eq!(
+            core.preview(),
+            ("Copy video".into(), Some("Est. ≈ 4 MB".into()))
+        );
         core.busy = Some(Run {
             canceled: Arc::new(AtomicBool::new(false)),
             percent: 0.0,
             mode: ExportMode::Convert,
+            audio_mode: AudioMode::None,
+            reasons: vec![],
             engine: Some(EncodeEngine::Cpu),
             destination: "out.mp4".into(),
         });
         let summary = core.preview();
-        assert_eq!(summary, ("Re-encode".into(), Some("Est. ≈ 4 MB".into())));
+        assert_eq!(summary, ("Encode video".into(), Some("Est. ≈ 4 MB".into())));
     }
 
     #[test]
@@ -2514,11 +2614,13 @@ mod tests {
             canceled: Arc::new(AtomicBool::new(false)),
             percent: 0.0,
             mode: ExportMode::Convert,
+            audio_mode: AudioMode::None,
+            reasons: vec![],
             engine: Some(EncodeEngine::CpuFallback),
             destination: "out.mp4".into(),
         });
         let (detail, size) = core.preview();
-        assert_eq!(detail, "CPU retry");
+        assert_eq!(detail, "CPU retry · Encode video");
         assert!(size.unwrap().starts_with("Target ≈"));
         let legacy: Saved = serde_json::from_str(r#"{"paths":["one.mp4"],"selected":0}"#).unwrap();
         assert_eq!(legacy.export_settings, ExportSettings::default());
@@ -2527,9 +2629,9 @@ mod tests {
     #[test]
     fn simplified_settings_migrate_format_and_old_fixed_rates() {
         let mut core = ready_core();
-        assert_eq!(core.preview().0, "Copy");
+        assert_eq!(core.preview().0, "Copy video");
         core.settings.frame_rate = FrameRate::Fps60;
-        assert_eq!(core.preview().0, "Re-encode");
+        assert_eq!(core.preview().0, "Encode video");
         let legacy = simplified_settings(ExportSettings {
             codec: VideoCodec::H264,
             frame_rate: FrameRate::Fps23976,
@@ -2558,7 +2660,31 @@ mod tests {
         );
         assert_eq!(
             core.preview(),
-            ("Re-encode".into(), Some("Est. ≈ 8 MB".into()))
+            ("Encode video".into(), Some("Est. ≈ 8 MB".into()))
         );
+    }
+
+    #[test]
+    fn export_details_name_audio_reasons_without_claiming_video_encoding() {
+        let mut core = ready_core();
+        let info = core
+            .clips
+            .values_mut()
+            .next()
+            .unwrap()
+            .info
+            .as_mut()
+            .unwrap()
+            .as_mut()
+            .unwrap();
+        info.audio_index = Some(1);
+        assert_eq!(core.preview().0, "Copy video · encode audio");
+        let detail = core.export_explanation();
+        assert!(detail.contains("Clip 1: Audio copying could not be verified"));
+        assert!(detail.contains("one.mp4"));
+        core.settings.preset = ExportPreset::Small;
+        let detail = core.export_explanation();
+        assert!(detail.contains("size choice requires video encoding"));
+        assert!(detail.contains("Audio copying could not be verified"));
     }
 }

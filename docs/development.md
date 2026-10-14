@@ -112,12 +112,21 @@ These checks use the prepared runtime beside `build/Stitch.exe`:
 
 ```powershell
 cargo test --locked --test media_flow -- --ignored
+cargo test --locked --test copy_flow -- --ignored
 ./scripts/test-ui.ps1
 ```
 
 The media check makes videos and `summary.json` in `build/test-output/media-flow-<process-id>/`.
+The track-copy check makes videos and `summary.json` in `build/test-output/copy-flow-<process-id>/`.
+It compares video and audio packets, decoded audio samples, audio retries, source bytes, and destination protection.
 Each media check creates the parent output folder before it creates its separate process-ID folder.
 It also makes frame timing and color records in `frame-flow-<process-id>/` and `color-flow-<process-id>/`.
+It makes MP4 edit-list records in `edit-flow-<process-id>/` and MPEG and Theora records in `container-flow-<process-id>/`.
+
+Theora fixture generation uses an encoder with `libtheora` support.
+If the prepared runtime has no such encoder, the check uses the verified development runtime in `.reader-data/runtime/`.
+Inspection and export still use the prepared runtime beside `build/Stitch.exe`.
+
 It must pass the [media acceptance checks](media.md#failure-recovery-and-checks).
 For encoding changes, it must examine both CPU codecs and the available NVIDIA codecs.
 If an NVIDIA codec is not available, record that check limit.

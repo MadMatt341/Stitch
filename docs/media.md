@@ -1,12 +1,32 @@
 # Media contract
 
 `src/media.rs` owns inspection, thumbnails, export, and FFmpeg process lifetime.
+`src/media/copy.rs` owns video and audio copy decisions and audio boundary checks.
+`src/media/copy/mp4.rs` owns selected audio sample-description and edit-list checks.
 `tests/media_flow.rs` owns the generated-video acceptance check.
+`tests/copy_flow.rs` owns copied audio, decoded samples, and audio retry checks.
 The [development reference](development.md#checks) gives its command, prerequisites, output paths, and limits.
 
 ## Media selection
 
 Stitch reads local video files and makes one MP4 output in list order.
+The file picker includes these input extensions:
+
+| Container | Extensions |
+| --- | --- |
+| MPEG-4 and QuickTime | `.mp4`, `.mov`, `.m4v`, `.3gp`, `.3g2` |
+| Matroska and WebM | `.mkv`, `.webm` |
+| AVI and Windows Media | `.avi`, `.wmv`, `.asf` |
+| MPEG program stream | `.mpg`, `.mpeg`, `.vob` |
+| MPEG transport stream | `.ts`, `.mts`, `.m2ts` |
+| Flash Video | `.flv` |
+| Ogg video | `.ogv`, `.ogg` |
+| Material Exchange Format | `.mxf` |
+
+The extension does not show codec support or copy compatibility.
+The app examines each input with the prepared runtime.
+The All files filter and file drop can supply other local files for inspection.
+
 The default video track has priority over other video tracks.
 If no default video track is available, the app uses the first video track.
 Attached pictures do not count as video tracks.
@@ -24,6 +44,14 @@ It also rejects a file that changes during inspection.
 Display dimensions include rotation and pixel aspect ratio.
 The video track dimensions and the display dimensions must be from 2 to 16384 pixels.
 
+For MPEG program streams, inspection reads the last video frames to calculate the full video duration.
+Metadata can stop at the last explicit timestamp and not include frames with calculated timestamps.
+If the seek returns no frames, inspection reads the video frames without a seek.
+
+For Matroska tracks without numeric duration metadata, inspection uses a correct `DURATION` tag.
+This tag gives the track end time.
+The calculation subtracts the track start time.
+
 The app makes a 96×54 thumbnail from the selected video track.
 The thumbnail keeps the picture proportions and uses padding as necessary.
 The scale filter uses `reset_sar=1` to keep the display proportions with square pixels.
@@ -33,17 +61,52 @@ HDR thumbnails use tone mapping for the standard color UI.
 ## Copy and conversion
 
 Copy mode keeps the H.264 or H.265 (HEVC) video packets.
-Compatible stream layouts, codec settings, timing, and codec initialization data are necessary for all clips.
+Compatible selected video tracks, codec settings, timing, and codec initialization data are necessary for all clips.
 The source layout must contain one video track and only video or audio tracks.
-Each audio track must use AAC.
 Each MP4 or MOV track must have one sample description.
-`parse_probe`, `single_mp4_descriptions`, and `can_copy` in `src/media.rs` own the full compatibility checks.
 
-When copy mode includes audio, the app decodes each selected audio track and makes one AAC track.
+MP4 and MOV inspection also examines selected video packets for discard flags near the clip boundaries.
+For clips longer than five seconds, FFprobe reads intervals at the start and end.
+These intervals specify two seconds at the start and three seconds at the end.
+For shorter clips, it reads all selected video packets.
+If a sample does not reach the video end, inspection reads all selected video packet flags without a seek.
+
+Discard flags prevent copy mode because MP4 edit lists can keep reference pictures out of the displayed frames.
+Packet copying can display these pictures at an internal clip boundary.
+
+`parse_probe`, `inspect`, `single_mp4_descriptions`, and `can_copy` in `src/media.rs` own the video compatibility checks.
+Audio differences do not alone require video conversion.
+
+The app selects an operation for the audio tracks.
+Audio copying is possible with the same AAC-LC settings and correct 1,024-sample packet timing.
+The selected audio track index must match across clips.
+The start and end of each audio track must agree with the video timeline.
+The copy checks use source timestamp precision for small differences.
+Audio encoding is necessary for padding removal, added silence, or resampling at an internal boundary.
+
+The first clip can contain initial decoder padding.
+The last clip can contain padding at its audio end.
+The app must keep their effects in the MP4 output.
+Audio copying from MP4 or MOV is possible with one sample description and no internal edit list.
+Unknown audio timing requires audio encoding.
+
+For clips of five seconds or less, audio inspection reads all selected audio packets.
+For longer clips, it reads the first and last quarter-second intervals in isolated processes.
+If the last packet sample does not reach the audio end, the app uses audio encoding.
+Inspection stores these results before the UI makes an export plan.
+Setting changes do not start these processes.
+
+When audio encoding is necessary, the app decodes each selected audio track and makes one AAC track.
 It removes source padding and fills timing gaps at clip boundaries.
-The output uses the first clip's audio sample rate and channel layout.
-An unsupported audio channel layout causes failure.
-If copied video fails processing or output validation, the app tries conversion unless cancellation is active.
+Clips without audio add silence when other clips contain audio.
+With copied video, audio encoding uses the first clip's sample rate and channel layout when AAC encoding can use them.
+If AAC encoding cannot use these settings, the app makes stereo AAC at 48 kHz.
+
+If copied audio fails processing or output validation, the app retries with encoded audio.
+This retry keeps copied video or a video track that it already encoded.
+If video copying then fails, the app tries video conversion.
+Cancellation prevents these retries.
+The UI shows each track operation and the cause of encoding before export.
 
 App conversion makes H.265 video with an automatically selected color format and bit depth.
 The first clip sets the output dimensions.
@@ -51,8 +114,8 @@ The app rounds dimensions up to even numbers.
 It keeps the picture proportions and adds padding as necessary.
 The scale filter uses `reset_sar=1` to include pixel aspect ratio when it makes square pixels.
 
-It converts selected audio tracks to stereo AAC at 48 kHz.
-If the list contains audio, clips without audio add silence for their duration.
+Video conversion can keep compatible copied audio.
+When video conversion also includes audio encoding, it makes stereo AAC at 48 kHz.
 
 If all clips have no audio, the output has no audio track.
 The app can convert PQ HDR, HLG HDR, and standard color video with high bit depth.
@@ -111,6 +174,11 @@ The app moves each clip's first frame to its position on the output timeline.
 That position is the sum of the preceding clip durations.
 Mixed source rates and variable source timing produce variable frame rate output.
 The app does not convert the frames to the first clip's rate.
+
+Theora can use empty packets for repeated images.
+The decoder does not supply these empty packets as frames.
+For Original conversion, the app repeats these images at the inspected source rate and trims them to the clip duration.
+This operation keeps the Theora playback speed and the next clip's position.
 
 Conversion uses a microsecond filter time base and the `interleave` video filter to join the frames by presentation time.
 It uses `-fps_mode:v passthrough` and `-enc_time_base:v filter` to keep that timing during encoding.
@@ -191,8 +259,8 @@ The scale factor has a minimum of 0.05 and a maximum of 16.
 H.264 and H.265 use the same targets.
 Different codecs and encoders can give different picture quality at the same target bitrate.
 
-These presets keep the conversion audio settings.
-They make stereo AAC at 48 kHz with a target bitrate of 192 kbps when any clip contains audio.
+These presets can keep compatible copied audio.
+When audio encoding is necessary, they make stereo AAC at 48 kHz with a target bitrate of 192 kbps.
 The size presets use the same automatic color conversion as quality encoding.
 
 ## NVIDIA encoding and CPU recovery
@@ -212,6 +280,11 @@ Conversion with original timing uses the CPU to keep correct encoder rate contro
 This includes quality encoding with Keep source selected and conversions with a size target.
 The CPU retry keeps the selected bit depth and color format.
 
+CPU encoding sets its thread count from the available logical processor count, with a maximum of 12.
+CPU conversion uses one decoder thread for each source to keep processor capacity available for encoding.
+Fixed-rate NVIDIA conversion divides the available processor count by the source count, with one to four decoder threads for each source.
+These thread limits do not change quality settings or bitrate targets.
+
 If NVIDIA encoding or its output validation fails, the app tries CPU encoding once.
 The retry keeps the selected codec, target bitrate, input list, source locks, and temporary output folder.
 The app reports the CPU retry through export progress and the result status.
@@ -225,13 +298,19 @@ They count each list entry, including repeated files.
 They do not read source files or start media processes when export settings change.
 
 The copy estimate adds each selected video bitrate multiplied by its clip duration.
-If the clips contain audio, it adds the target bitrate for the rebuilt AAC track for the full list duration.
-This audio target is 96 kbps for each channel, with a minimum of one channel and a maximum of eight.
-A missing or invalid selected video bitrate prevents the copy estimate.
+Copied audio adds each selected audio bitrate multiplied by its clip duration.
+Inspection uses numeric audio bitrate metadata or a correct `BPS` tag.
+Encoded audio adds its target bitrate for the full list duration.
+
+With copied video, this target is 96 kbps for each channel, up to eight channels.
+If AAC encoding cannot use the source format, the target is 192 kbps.
+Stereo conversion uses 192 kbps.
+A missing or invalid selected bitrate prevents the estimate for a copied track.
 The app does not use the full source file size as the selected video size.
 
 For encoding presets, the calculation multiplies the target video bitrate by the list duration.
-If any clip contains audio, it includes 192 kbps for the full duration.
+If audio encoding is necessary, it includes 192 kbps for the full duration.
+Copied audio uses its selected source rates.
 The calculations divide the total number of bits by eight to give bytes.
 They do not include MP4 container data.
 If all clips have no audio track, the calculation has no audio contribution.
@@ -239,13 +318,17 @@ If all clips have no audio track, the calculation has no audio contribution.
 These values are approximate.
 The output file size can be smaller or larger than the target.
 Short clips or simple picture content can give much smaller files.
+
+Copy output size can be approximately the sum of the source sizes because it keeps the compressed video packets.
+Container data, selected tracks, and the new audio track can change that sum.
+Encoding settings and picture content change the conversion output size.
 The [x265 quality reference](https://x265.readthedocs.io/en/master/cli.html#cmdoption-crf) describes how picture content changes CRF output size.
 
 For quality conversion, the estimate uses each selected source video bitrate as a reference.
 It adjusts each bitrate for the output pixel count and frame rate.
 If a bitrate is missing or invalid, it uses the Medium reference rate for that clip.
 This reference rate uses the output dimensions and the clip's output frame rate.
-The calculation includes 192 kbps for the full duration when any clip contains audio.
+The calculation includes the selected audio operation and its source or target rates.
 The estimate does not set the encoding bitrate.
 
 Quality encoding can differ from its estimate because picture content, source compression, and encoder choice change its bitrate.
@@ -263,11 +346,16 @@ It inspects the source again and rejects changes since the source entered the li
 
 The app makes a separate temporary folder beside the destination.
 This folder holds the partial output, input manifest, and filter scripts.
-The app validates duration, video codec for conversion, display dimensions, and whether the output contains audio.
+The app validates duration, video codec, display dimensions, and whether the output contains audio.
 For conversion, it also validates output bit depth, color primaries, transfer function, matrix, and range.
 For a fixed frame rate selection, it also validates the output frame rate.
 App conversion must have an H.265 video track.
 Library conversion must have a video track with the requested codec.
+
+Copied audio validation examines codec initialization, sample rate, channels, initial padding, final padding, and packet timing at each join.
+The total duration cannot show whether the audio timing is correct.
+Runtime checks read boundary packets.
+Acceptance checks compare compressed packet hashes and decoded audio samples.
 
 It flushes the completed output before replacement.
 The app replaces the destination through `MoveFileExW` only after validation passes.
@@ -295,6 +383,8 @@ If the runtime is missing, run `scripts/build.ps1` from the project root.
 If a Dolby Vision profile 5 clip needs conversion, supply an HDR10 or HLG version.
 
 Unit tests examine metadata selection, copy compatibility, conversion arguments, and filename handling.
+Track-copy checks must examine the video and audio decisions and their displayed causes.
+They must examine internal AAC padding, missing audio, unsupported AAC sample rates, audio retries, and cancellation before a retry.
 Unit tests use `cmd.exe` and Windows PowerShell to examine shutdown when child processes keep pipe handles open.
 
 Export settings checks must examine bitrate metadata, target calculations, codec arguments, and source mode quality settings.
@@ -305,8 +395,16 @@ Timeout checks must examine process shutdown when a child process keeps pipe han
 These retry checks cannot depend on the absence of a working GPU.
 
 The generated-video check examines packet order, decoded frame order, mixed dimensions and rates, audio, and silence.
-It includes H.264 copy, 10-bit HEVC copy, active cancellation, destination locks, source aliases, and changed sources.
+It includes H.264 copy from MP4 and MKV, and 10-bit HEVC copy.
+It also includes active cancellation, destination locks, source aliases, and changed sources.
 It examines rotated video with non-square pixels through thumbnail pixels and decoded output frames.
+
+MP4 edit-list checks must prevent display of discarded reference pictures at clip boundaries.
+Repeated inspection must give the same metadata when the source stays unchanged.
+Packet inspection with a seek must verify that its result includes the necessary clip boundary.
+MPEG program-stream checks must include frames after the last explicit timestamp and clips longer than five seconds.
+Theora checks must include repeated images, Original timing, and both fixed-rate selections.
+These checks compare decoded frame count, image order, audio presence, and source bytes.
 
 Color checks examine standard color 10-bit video, PQ, HLG, mixed color formats, and input order changes.
 They compare decoded grayscale luminance against the source signals and check output color tags and bit depth.
@@ -328,3 +426,6 @@ These generated inputs do not prove compatibility with each camera or recording 
 For changes to media behavior, also use typical source recordings with their expected order and audio.
 Keep source hashes before and after the check to examine source protection.
 Record the build, runtime, input properties, output result, and remaining checks.
+
+The [2026-10-14 stitching review](reviews/2026-10-14-stitching.md) records file sizes, export times, format checks, and remaining acceptance.
+The [2026-10-14 track-copy review](reviews/2026-10-14-track-copy.md) records copied audio, audio retries, UI causes, and remaining checks.

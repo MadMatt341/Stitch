@@ -19,7 +19,7 @@ impl App {
             self.key(b'F' as u32, true, false, false);
             let fixed_selected = self.core.borrow().settings.frame_rate == FrameRate::Fps60
                 && self.core.borrow().export_plan().unwrap().mode == ExportMode::Convert
-                && self.core.borrow().preview().0 == "Re-encode";
+                && self.core.borrow().preview().0 == "Encode video";
             self.key(b'F' as u32, false, false, false);
             let original_restored = self.core.borrow().settings == original_settings;
             for _ in 0..3 {

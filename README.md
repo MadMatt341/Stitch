@@ -8,7 +8,7 @@ The application source is public under the [MIT license](LICENSE).
 The FFmpeg runtime keeps its separate licenses.
 The [release reference](docs/releases.md) gives download contents and source requirements.
 
-Download the [portable Windows x64 beta](https://github.com/MadMatt341/Stitch-Releases/releases/tag/v0.1.1-beta).
+Download the [portable Windows x64 beta](https://github.com/MadMatt341/Stitch-Releases/releases/tag/v0.1.2-beta).
 Extract the complete ZIP before you start `Stitch.exe`.
 The matching FFmpeg source is a separate download on the same release page.
 
@@ -16,6 +16,10 @@ The matching FFmpeg source is a separate download on the same release page.
 
 Start `build/Stitch.exe`.
 Keep its `runtime` folder beside the executable.
+
+The file picker includes MP4, MKV, MOV, WebM, AVI, Windows Media, MPEG, and other local video containers.
+The [media selection reference](docs/media.md#media-selection) gives the full input extension list and inspection conditions.
+The output stays MP4.
 
 | Input | Action |
 | --- | --- |
@@ -31,6 +35,7 @@ Keep its `runtime` folder beside the executable.
 | F or Shift+F | Select the next or previous frame rate. |
 | Ctrl+S | Open the save dialog. During export, cancel the export. |
 | H | Show or hide Help. |
+| F1 | Show export operations and encoding causes. |
 | Esc | Cancel a row drag or hide Help. |
 | Alt+F4 or Ctrl+Q | Close the app. |
 
@@ -60,9 +65,15 @@ The [UI reference](docs/ui.md) gives the input, window, and file-dialog contract
 
 Keep source is the default file size selection.
 For compatible H.264 or H.265 (HEVC) clips, this mode copies the video packets.
-If the clips contain audio, it makes one AAC audio track to remove gaps at clip boundaries.
-For other supported clips, it converts to H.265 and AAC with automatic color handling.
+It also copies compatible AAC-LC audio when the packet timing is correct for the join.
+If audio copying is not possible, it encodes audio to remove padding and fill gaps while it keeps compatible video copied.
+
+For other supported video, it converts to H.265 with automatic color handling.
+Video conversion can keep compatible audio copied.
 The default conversion uses quality encoding without a fixed file size target.
+
+The summary identifies both track operations.
+F1 gives the causes when encoding is necessary.
 
 Small, Medium, and Large are file size targets.
 With a fixed frame rate, these presets use NVIDIA encoding when available and CPU encoding otherwise.
@@ -71,6 +82,11 @@ The retry keeps the selected codec and target.
 
 File size values are approximate.
 Short clips or simple picture content can give much smaller files than the target.
+
+Copy output size can be approximately the sum of the source sizes.
+Conversion can give a different size because it makes new compressed video.
+The input extension alone does not show copy compatibility.
+
 The app selects H.265 (HEVC) in MP4 for new encoding.
 You do not need to select a format.
 On Windows, HEVC playback can require a [codec extension](https://support.microsoft.com/en-us/windows/apps/windowsmediaplayer/troubleshoot-windows-media-player-errors).
