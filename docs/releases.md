@@ -86,6 +86,19 @@ This collection includes build tools and unused source packages.
 The Windows job checks those records and runs the media acceptance check with the candidate.
 A successful build remains a candidate until its source record and final application checks pass.
 
+### Selected public runtime
+
+The [distribution manifest](../.github/runtime/distribution.json) records the checked runtime for `v0.1.0-beta`.
+The native build passed its source audit.
+The [Windows validation](https://github.com/MadMatt341/Stitch/actions/runs/38512516251) passed with the selected application source.
+Local media checks also passed CPU and NVIDIA encoding with this runtime.
+The [release check record](reviews/2026-10-14-public-release.md) gives the results and remaining beta limits.
+
+The public release has separate application, runtime, and source downloads.
+The portable application ZIP contains the runtime and license notices.
+The large FFmpeg source archive stays separate from that ZIP.
+Keep the matching source available with each runtime distribution.
+
 ## Prepare the runtime
 
 From the project root, start the manual GitHub workflow:

@@ -116,9 +116,8 @@ All 24 unit tests, formatting, and Clippy with all features passed after this co
 Commit `2e5f4053d45caa077fffd103edaad48a8cb6cb5c` contains the correction.
 The production process supervisor did not change.
 
-## Remaining work
+## Preparation checkpoint
 
-The runtime source audit, final runtime pin, local media and NVIDIA checks, native UI checks, and package acceptance remain pending.
-Public download publication and anonymous download verification also remain pending.
-Physical input and target-display observations remain separate beta limits.
-The release continuation must retain these limits and cannot report them as completed observations.
+At this checkpoint, the runtime source audit, final runtime pin, local checks, and package acceptance remained pending.
+Public download publication and anonymous download verification also remained pending.
+The [release check record](2026-10-14-public-release.md) gives the subsequent results and remaining beta limits.
