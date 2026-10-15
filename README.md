@@ -8,7 +8,7 @@ The application source is public under the [MIT license](LICENSE).
 The FFmpeg runtime keeps its separate licenses.
 The [release reference](docs/releases.md) gives download contents and source requirements.
 
-Download the [portable Windows x64 beta](https://github.com/MadMatt341/Stitch-Releases/releases/tag/v0.1.2-beta).
+Download the [portable Windows x64 beta](https://github.com/MadMatt341/Stitch-Releases/releases/tag/v0.1.3-beta).
 Extract the complete ZIP before you start `Stitch.exe`.
 The matching FFmpeg source is a separate download on the same release page.
 

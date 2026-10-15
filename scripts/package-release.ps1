@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory)][string]$RuntimeDirectory,
     [string]$RuntimeManifest,
-    [string]$Version = '0.1.0-beta',
+    [string]$Version = '0.1.3-beta',
     [string]$OutputDirectory
 )
 $ErrorActionPreference = 'Stop'
@@ -63,6 +63,7 @@ try {
     $archive = Assert-StitchRecord $RuntimeDirectory $record.archive
     $sourceArchive = Assert-StitchRecord $RuntimeDirectory $record.correspondingSource
     $inventory = Assert-StitchRecord $RuntimeDirectory $record.resolvedSources
+    $sourceAudit = if ($record.sourceAudit) { Assert-StitchRecord $RuntimeDirectory $record.sourceAudit } else { $null }
     $binaryNames = @($record.binaries.fileName | Sort-Object)
     if ($binaryNames.Count -ne 2 -or ($binaryNames -join '|') -ne 'ffmpeg.exe|ffprobe.exe') {
         throw 'The runtime must contain exactly FFmpeg and FFprobe.'
@@ -157,6 +158,10 @@ try {
     Copy-Item -LiteralPath $RuntimeManifest -Destination $runtimeRecord
     $assets = @($portableZip,$applicationSource,(Join-Path $OutputDirectory $record.correspondingSource.fileName),
         (Join-Path $OutputDirectory $record.resolvedSources.fileName),$runtimeRecord)
+    if ($sourceAudit) {
+        Copy-Item -LiteralPath $sourceAudit -Destination $OutputDirectory
+        $assets += Join-Path $OutputDirectory $record.sourceAudit.fileName
+    }
     $releaseRecord = [ordered]@{
         schemaVersion = 1
         applicationVersion = $Version

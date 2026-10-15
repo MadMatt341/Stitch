@@ -164,8 +164,13 @@ while IFS= read -r -d '' source_entry; do
         git -C "$source_entry" submodule status --recursive > "$submodule_file" 2>/dev/null || true
         [[ -s "$submodule_file" ]] || rm -f "$submodule_file"
 
-        printf '%s\tgit\t%s\t%s\t%s\t%s\n' \
-            "$package_name" "$revision" "$tree" "$remote" "$working_tree" \
+        source_kind=git
+        if [[ "$package_name" == mpv-packaging ]]; then
+            source_kind=unused-reference
+            working_tree=not-included
+        fi
+        printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "$package_name" "$source_kind" "$revision" "$tree" "$remote" "$working_tree" \
             >> "$resolved_sources"
     else
         printf '%s\tarchive\t-\t-\t-\tcaptured\n' "$package_name" \
@@ -223,6 +228,7 @@ tar --sort=name \
     -cf - \
     -C "$stage_root" "$bundle_name" \
     -C "$source_parent" \
+    --exclude="$source_name/mpv-packaging" \
     --transform="s|^$source_name|$bundle_name/src_packages|" \
     "$source_name" |
     zstd -15 -T0 -o "$output_archive"

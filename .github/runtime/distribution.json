@@ -7,10 +7,22 @@
   "nvcodecCommit": "e844e5b26f46bb77479f063029595293aa8f812d",
   "nvcodecApiVersion": "13.0",
   "archive": {
-    "fileName": "ffmpeg-stitch-9.0.2-win-x64.zip",
-    "sizeBytes": 89552376,
-    "sha256": "8EC44BD35642FA8EBE344F0125E15079F78E313E11EADDDA7DC4D4F37F2C6024",
-    "url": "https://github.com/MadMatt341/Stitch-Releases/releases/download/v0.1.0-beta/ffmpeg-stitch-9.0.2-win-x64.zip"
+    "fileName": "ffmpeg-stitch-9.0.2-win-x64-notices.zip",
+    "sizeBytes": 92579990,
+    "sha256": "2E4CB089EC9E292EA7C611818A3672ED099D1768E4123629E8EEF55AD797F032",
+    "url": "https://github.com/MadMatt341/Stitch-Releases/releases/download/ffmpeg-9.0.2-stitch1/ffmpeg-stitch-9.0.2-win-x64-notices.zip"
+  },
+  "correspondingSource": {
+    "fileName": "ffmpeg-stitch-source-946fcce07b6d-audited.tar.zst",
+    "sizeBytes": 988130619,
+    "sha256": "779E1DC63E98980D19E24162E0CF148C2F841C4F78B530F7865F222A8F6F9AB9",
+    "url": "https://github.com/MadMatt341/Stitch-Releases/releases/download/ffmpeg-9.0.2-stitch1/ffmpeg-stitch-source-946fcce07b6d-audited.tar.zst"
+  },
+  "resolvedSources": {
+    "fileName": "RESOLVED-SOURCES.tsv",
+    "sizeBytes": 13429,
+    "sha256": "56A4732EDB3D59B9DEA28C39060AE6A3DBA1A2825443A0E634A55F6572074057",
+    "url": "https://github.com/MadMatt341/Stitch-Releases/releases/download/ffmpeg-9.0.2-stitch1/RESOLVED-SOURCES.tsv"
   },
   "binaries": [
     {
@@ -24,18 +36,13 @@
       "sha256": "A4876A4C9922526EB3451FB02CDE986B37CB93328F3007A7CFB21216F9675F65"
     }
   ],
-  "correspondingSource": {
-    "fileName": "ffmpeg-stitch-source-946fcce07b6d.tar.zst",
-    "sizeBytes": 992383959,
-    "sha256": "3ACD6BBF19D744C3E734CD204ECB7214C3772A041E413D20E247F20906C8DF9B",
-    "url": "https://github.com/MadMatt341/Stitch-Releases/releases/download/v0.1.0-beta/ffmpeg-stitch-source-946fcce07b6d.tar.zst"
-  },
-  "resolvedSources": {
-    "fileName": "RESOLVED-SOURCES.tsv",
-    "sizeBytes": 13409,
-    "sha256": "53F54DDF85B4BC43A1776612EB675DF4389065BEE531D1D9BABDE0D9CA3117DD",
-    "url": "https://github.com/MadMatt341/Stitch-Releases/releases/download/v0.1.0-beta/RESOLVED-SOURCES.tsv"
+  "sourceAudit": {
+    "fileName": "SOURCE-AUDIT.json",
+    "sizeBytes": 1331,
+    "sha256": "46DC45BA3D0B5ED332B9505544CE14D4AAF2B2B8B01CCB95FC875AC0266E0FF3",
+    "url": "https://github.com/MadMatt341/Stitch-Releases/releases/download/ffmpeg-9.0.2-stitch1/SOURCE-AUDIT.json"
   },
   "validationRunUrl": "https://github.com/MadMatt341/Stitch/actions/runs/38512516251",
-  "buildRunUrl": "https://github.com/MadMatt341/Stitch/actions/runs/38500425805"
+  "buildRunUrl": "https://github.com/MadMatt341/Stitch/actions/runs/38500425805",
+  "localValidationRecord": "docs/reviews/2026-10-15-notice-release.md"
 }

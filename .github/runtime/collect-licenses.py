@@ -10,6 +10,40 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import tarfile
+
+
+def archive_notices(package, source_root, destination_root, records, seen_names, notice_name):
+    for archive_path in sorted(package.iterdir()):
+        if not archive_path.is_file() or not re.search(r"\.tar\.(?:gz|xz|bz2)$", archive_path.name):
+            continue
+        with tarfile.open(archive_path, "r:*") as archive:
+            for entry in archive:
+                parts = Path(entry.name).parts
+                if not entry.isfile() or not parts:
+                    continue
+                if not notice_name.fullmatch(parts[-1]) and not any(
+                    part.lower() in {"licenses", "licences", "copyrights"} for part in parts
+                ):
+                    continue
+                if entry.name.startswith("/") or ".." in parts or "\\" in entry.name or ":" in entry.name:
+                    raise RuntimeError("Unsafe source archive notice path")
+                relative = Path(package.name) / "archive" / entry.name
+                normalized = relative.as_posix().casefold()
+                if normalized in seen_names:
+                    raise RuntimeError(f"Windows license path collision: {relative}")
+                seen_names.add(normalized)
+                data = archive.extractfile(entry).read()
+                destination = destination_root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(data)
+                records.append({
+                    "path": relative.as_posix(),
+                    "sizeBytes": len(data),
+                    "sha256": hashlib.sha256(data).hexdigest().upper(),
+                    "sourceArchive": archive_path.relative_to(source_root).as_posix(),
+                    "archiveMember": entry.name,
+                })
 
 
 def collect(source_root: Path, runtime_root: Path) -> None:
@@ -25,6 +59,7 @@ def collect(source_root: Path, runtime_root: Path) -> None:
     for package in sorted(source_root.iterdir()):
         if not package.is_dir() or package.is_symlink():
             continue
+        archive_notices(package, source_root, destination_root, records, seen_names, notice_name)
         for directory, folders, files in os.walk(package, followlinks=False):
             folders[:] = sorted(
                 name for name in folders

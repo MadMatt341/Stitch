@@ -50,11 +50,10 @@ Do not copy the complete build folder into a release.
 
 ## Runtime sources
 
-The current development runtime comes from Gyan's FFmpeg 9.0.2 archive.
-Its notices identify the FFmpeg revision.
-They do not establish the complete matching source for its external libraries.
-This runtime is not an approved input for a public bundled release.
-The [development reference](development.md#runtime-provenance) owns the current development pin.
+The default build and portable release use the checked Stitch build of FFmpeg 9.0.2.
+The earlier Gyan archive does not establish complete matching source for its external libraries.
+It is not an approved input for a public bundled release.
+The [development reference](development.md#runtime-provenance) gives the default build procedure.
 
 The user selected a verified runtime before publication.
 `.github/runtime/build.json` owns the candidate build inputs.
@@ -89,14 +88,20 @@ The build keeps resolved sources, source changes, build scripts, bootstrap input
 The runtime archive and source archive have SHA-256 records.
 The runtime includes unchanged license notices from the captured source trees.
 Its `LICENSES.json` file records their source paths and hashes.
+For notices inside original source archives, it also records the archive path and member path.
 This collection includes build tools and unused source packages.
+
+The corresponding source archive excludes the unused Windows SDK packaging package and its prebuilt binaries.
+Its inventory retains that package's original source reference.
+All compiled runtime components retain their complete source inputs.
+For a corrected archive, `SOURCE-AUDIT.json` records the original archive hashes, unchanged executable hashes, and excluded package.
 
 The local Windows check verifies those records and runs the media acceptance check with the candidate.
 A successful build remains a candidate until its source record and final application checks pass.
 
 ### Selected public runtime
 
-The [distribution manifest](../.github/runtime/distribution.json) records the checked runtime for `v0.1.0-beta`.
+The [distribution manifest](../.github/runtime/distribution.json) records the checked runtime and its complete dependency notices.
 The native build passed its source audit.
 The [Windows validation](https://github.com/MadMatt341/Stitch/actions/runs/38512516251) passed with the selected application source.
 Local media checks also passed CPU and NVIDIA encoding with this runtime.
@@ -161,7 +166,7 @@ Do not create this verified record before the source audit and applicable runtim
 From the project root, prepare the release files:
 
 ```powershell
-./scripts/package-release.ps1 -RuntimeDirectory build/runtime-candidate -Version 0.1.2-beta
+./scripts/package-release.ps1 -RuntimeDirectory build/runtime-audited-v2 -Version 0.1.3-beta
 ```
 
 The script requires clean, committed source at `origin/main` and the verified runtime manifest.
@@ -196,3 +201,5 @@ The [2026-10-14 preparation record](reviews/2026-10-14-public-release-preparatio
 The [0.1.1 beta check record](reviews/2026-10-14-quality-release.md) gives local results and remaining limits for that application release.
 
 The [0.1.2 beta check record](reviews/2026-10-14-joining-release.md) gives local results and remaining limits for the combined joining changes.
+
+The [0.1.3 beta check record](reviews/2026-10-15-notice-release.md) gives the dependency notice correction and source comparison results.

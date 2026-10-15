@@ -13,6 +13,10 @@ Each dependency keeps its license files.
 `metadata/BUILD-COMMANDS.txt` gives the build commands and container pin.
 `metadata/RESOLVED-SOURCES.tsv` gives the source revisions.
 
+The source inventory keeps the reference for unused Windows SDK packaging inputs.
+The archive excludes that package and its prebuilt SDK binaries.
+These files do not contribute code to the FFmpeg tools.
+
 Use the specified container to make a new build.
 Apply the recorded changes to the original build scripts before configuration.
 Keep the captured dependency sources at the specified source location.

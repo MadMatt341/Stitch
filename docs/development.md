@@ -37,7 +37,7 @@ The `.gitignore` file does not include generated output, runtime binaries, or vi
 ## Build
 
 Requirements: Windows 10 or a subsequent version, Rust 1.98.1, PowerShell 7, and the MSVC build tools for Rust.
-The build script also uses `tar` to extract the runtime archive.
+The build script uses PowerShell to extract the runtime ZIP.
 
 From the project root, run:
 
@@ -45,9 +45,11 @@ From the project root, run:
 ./scripts/build.ps1
 ```
 
-The script downloads the pinned FFmpeg archive when the cache has no archive.
-It compares the archive SHA-256 with the pin in `scripts/build.ps1` before extraction.
-It extracts the verified archive on each build.
+The script reads the verified runtime pin from `.github/runtime/distribution.json`.
+It downloads that archive when the cache has no archive.
+It compares the archive size and SHA-256 with the manifest before extraction.
+It extracts the verified archive into a new folder on each build.
+It also verifies the executable and dependency notice hashes.
 It compiles the release executable with the locked Cargo dependencies.
 It copies the executable, runtime, license, and notices into `build/`.
 After completion, the script prints the path to `build/Stitch.exe`.
@@ -65,13 +67,14 @@ If compilation fails, correct the reported source or toolchain error before you 
 
 ## Runtime provenance
 
-The runtime pin is FFmpeg 9.0.2 from [Gyan's build archive](https://www.gyan.dev/ffmpeg/builds/).
-`scripts/build.ps1` owns the specified archive URL and SHA-256.
+The runtime pin is the checked Stitch build of FFmpeg 9.0.2.
+The [distribution manifest](../.github/runtime/distribution.json) owns its archive URL, hashes, matching source, and check record.
 The runtime source reference is [FFmpeg commit 946fcce07b](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b).
 The runtime uses GPLv3.
 The executable folder includes `runtime/FFmpeg-LICENSE.txt` and `runtime/FFmpeg-README.txt`.
 The [release reference](releases.md) owns public distribution, license boundaries, and corresponding source requirements.
-The Gyan archive remains a development input until the source-captured runtime passes its release checks.
+The default build and portable release use the same checked runtime.
+The earlier Gyan archive is not a public distribution input.
 
 Encoding presets use the pinned runtime's `libx264`, `libx265`, `h264_nvenc`, and `hevc_nvenc` encoders.
 The NVIDIA encoders can operate only with a compatible GPU and driver.
