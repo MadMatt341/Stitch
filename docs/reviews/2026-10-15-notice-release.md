@@ -28,6 +28,7 @@ The new source archive keeps 65,456 files unchanged.
 Its four changed files are the archive introduction, inventory, capture script, and notice collector.
 It adds `metadata/SOURCE-AUDIT.json` with the derivation record.
 Archive user and group names are absent, while numeric IDs remain.
+All 73,633 retained archive entries keep their modes, numeric IDs, and normalized link targets.
 
 The archive audit passed 114 inventory entries, 87 retained Git HEAD records, and 839 non-Git source checksums.
 All 85 specified dependency references passed their revision or patched-tree checks.
@@ -65,7 +66,16 @@ It also includes the source audit record as a separate release asset.
 The default build uses the same verified runtime as public packaging.
 It verifies the archive, executable, and dependency notice hashes.
 
-After this record is committed and pushed, the extracted package and anonymous download checks remain necessary.
+The portable preflight used source commit `f767e4227623922dd3baa26a5c2d921abde951e2`.
+Its application SHA-256 is `F29DA0EF17A1C89DADEE3E264B724C706B3F4AACD391791AC01B811F7C150649`.
+Fresh extraction passed GUI startup and close with isolated state.
+It passed H.264 video copying, H.265 conversion, complete output decoding, and source byte protection.
+All release asset, executable, runtime, 367 notice, and Rust standard library notice hashes passed.
+Its report stays in `build/test-output/portable-preflight-ebba7a56796a44c9b81679840d407750/summary.json`.
+
+The corrected runtime and corresponding source passed complete anonymous downloads and SHA-256 comparisons.
+Their reports stay in `build/test-output/public-runtime-correction/`.
+The final application package must repeat extraction and anonymous download checks after this record is committed and pushed.
 The [release procedure](../releases.md#publication-checks) gives these checks.
 Keep their generated reports under ignored `build/test-output/` folders.
 
